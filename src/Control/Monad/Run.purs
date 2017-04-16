@@ -11,6 +11,7 @@ module Control.Monad.Run
   , decomp
   , run
   , runBase
+  , interpret
   , BaseEff
   , BaseAff
   ) where
@@ -20,12 +21,12 @@ import Control.Monad.Aff (Aff)
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (class MonadEff, liftEff)
-import Control.Monad.Free (Free, liftF, runFree, foldFree, resume)
+import Control.Monad.Free (Free, liftF, runFree, foldFree, substFree, resume)
 import Control.Monad.Rec.Class (class MonadRec)
 import Data.Either (Either(..))
-import Data.Newtype (class Newtype, unwrap, wrap)
+import Data.Newtype (class Newtype, unwrap, wrap, over)
 import Data.Symbol (SProxy(..), class IsSymbol, reflectSymbol)
-import Data.Yoneda (Yoneda, liftYoneda, lowerYoneda)
+import Data.Yoneda (Yoneda, liftYoneda, lowerYoneda, hoistYoneda)
 import Partial.Unsafe (unsafeCrashWith)
 import Type.Equality (class TypeEquals)
 import Unsafe.Coerce (unsafeCoerce)
@@ -122,6 +123,32 @@ runBase = unwrap >>> foldFree go
 
   coerceY ∷ ∀ g. g ~> f
   coerceY = unsafeCoerce
+
+interpret
+  ∷ ∀ sym f m r1 r2 r3 a
+  . RowCons sym (REffect f) r2 r1
+  ⇒ RowCons "base" (RBase m) r2 r3
+  ⇒ IsSymbol sym
+  ⇒ RProxy sym f
+  → (f ~> m)
+  → Run r1 a
+  → Run r3 a
+interpret _ k = over RunM (substFree (\a → liftF (go a)))
+  where
+  tag =
+    reflectSymbol (SProxy ∷ SProxy sym)
+
+  go ∷ RunF r1 ~> RunF r3
+  go r@(RunF (FTag tag') f) =
+    if tag == tag'
+      then RunF (FTag "base") (runFBox (mkFBox <<< hoistYoneda (k <<< coerceN)) f)
+      else coerceR r
+
+  coerceN ∷ ∀ g. g ~> f
+  coerceN = unsafeCoerce
+
+  coerceR ∷ RunF r1 ~> RunF r3
+  coerceR = unsafeCoerce
 
 data R (r ∷ # Type)
 

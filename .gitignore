@@ -2,7 +2,8 @@
 /node_modules/
 /.pulp-cache/
 /output/
-/.psci*
+/.psc*
+/.purs*
 /src/.webpack.js
 npm-debug.log
 .psa-stash
