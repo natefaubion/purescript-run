@@ -8,7 +8,7 @@ module Control.Monad.Run
   , liftBase
   , peel
   , send
-  , project
+  , decomp
   , run
   , runBase
   , BaseEff
@@ -89,14 +89,14 @@ send
   → Run r a
 send = wrap <<< liftF
 
-project
+decomp
   ∷ ∀ sym r1 r2 f a
   . RowCons sym (REffect f) r1 r2
   ⇒ IsSymbol sym
   ⇒ RProxy sym f
   → RunF r2 a
   → Either (RunF r1 a) (f a)
-project _ r@(RunF (FTag tag) f) =
+decomp _ r@(RunF (FTag tag) f) =
   if tag == reflectSymbol (SProxy ∷ SProxy sym)
     then Right (runFBox (coerceN <<< lowerYoneda) f)
     else Left (coerceR r)

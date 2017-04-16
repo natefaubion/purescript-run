@@ -1,5 +1,5 @@
 module Control.Monad.Run.Except
-  ( Except
+  ( Except(..)
   , EXCEPT
   , FAIL
   , _EXCEPT
@@ -12,7 +12,7 @@ module Control.Monad.Run.Except
   ) where
 
 import Prelude
-import Control.Monad.Run (Run, REffect, RProxy(..), liftEffect, peel, send, project)
+import Control.Monad.Run (Run, REffect, RProxy(..), liftEffect, peel, send, decomp)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe(..))
 
@@ -39,7 +39,7 @@ fail = throw unit
 catch ∷ ∀ e a r. (e → Run r a) → Run (except ∷ EXCEPT e | r) a → Run r a
 catch = loop
   where
-  handle = project _EXCEPT
+  handle = decomp _EXCEPT
   loop k r = case peel r of
     Left a → case handle a of
       Left a' →
@@ -52,7 +52,7 @@ catch = loop
 runExcept ∷ ∀ e a r. Run (except ∷ EXCEPT e | r) a → Run r (Either e a)
 runExcept = loop
   where
-  handle = project _EXCEPT
+  handle = decomp _EXCEPT
   loop r = case peel r of
     Left a → case handle a of
       Left a' →

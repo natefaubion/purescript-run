@@ -1,5 +1,5 @@
 module Control.Monad.Run.State
-  ( State
+  ( State(..)
   , STATE
   , _STATE
   , liftState
@@ -12,7 +12,7 @@ module Control.Monad.Run.State
   ) where
 
 import Prelude
-import Control.Monad.Run (Run, REffect, RProxy(..), liftEffect, peel, send, project)
+import Control.Monad.Run (Run, REffect, RProxy(..), liftEffect, peel, send, decomp)
 import Data.Either (Either(..))
 import Data.Tuple (Tuple(..), fst, snd)
 
@@ -40,7 +40,7 @@ get = liftState $ State id id
 runState ∷ ∀ s r a. s → Run (state ∷ STATE s | r) a → Run r (Tuple s a)
 runState = loop
   where
-  handle = project _STATE
+  handle = decomp _STATE
   loop s r = case peel r of
     Left a → case handle a of
       Left a' →
