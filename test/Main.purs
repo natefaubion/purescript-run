@@ -82,6 +82,6 @@ main = do
 
   yesProgram
     # catch (liftBase <<< log)
-    # runState (-1)
+    # runState (10)
     # runBase
     # void
