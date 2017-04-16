@@ -12,9 +12,11 @@ module Control.Monad.Run.State
   ) where
 
 import Prelude
-import Control.Monad.Run (Run, REffect, RProxy(..), liftRun, relay, peel)
+import Control.Monad.Free (liftF)
+import Control.Monad.Run (Run, REffect, RProxy(..), liftRun, peel, prj)
 import Data.Either (Either(..))
-import Data.Tuple (Tuple(..), fst, snd)
+import Data.Newtype (wrap)
+import Data.Tuple (Tuple(..), fst, snd, curry)
 
 data State s a = State (s → s) (s → a)
 
@@ -40,13 +42,16 @@ get = liftState $ State id id
 runState ∷ ∀ s r a. s → Run (state ∷ STATE s | r) a → Run r (Tuple s a)
 runState = loop
   where
-  handle = relay _STATE
+  handle = prj _STATE
   loop s r = case peel r of
-    Left a  → handle (loop s) (go s) a
-    Right a → pure (Tuple s a)
-  go s (State t k) =
-    let s' = t s
-    in loop s' (k s')
+    Left a → case handle a of
+      Left a' →
+        wrap (liftF a') >>= runState s
+      Right (State t k) →
+        let s' = t s
+        in loop s' (k s')
+    Right a →
+      pure (Tuple s a)
 
 evalState ∷ ∀ s r a. s → Run (state ∷ STATE s | r) a → Run r a
 evalState s = map snd <<< runState s

@@ -3,7 +3,7 @@ module Test.Main where
 import Prelude
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Eff.Console (CONSOLE, logShow)
+import Control.Monad.Eff.Console (CONSOLE, logShow, log)
 import Control.Monad.Run (Run, run, runBase, BaseEff)
 import Control.Monad.Run.Except (EXCEPT, runExcept, throw)
 import Control.Monad.Run.State (STATE, runState, get, put, modify)
@@ -20,8 +20,8 @@ program a = do
 program2 ∷ Run (state ∷ STATE Int, base ∷ BaseEff (console ∷ CONSOLE)) Int
 program2 = do
   for_ (Array.range 0 100000) \n → do
-    modify (_ + n)
-    liftEff $ logShow n
+    modify (_ + 1)
+  liftEff $ log "Done"
   get
 
 main ∷ Eff (console ∷ CONSOLE) Unit
