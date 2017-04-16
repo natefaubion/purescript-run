@@ -6,6 +6,7 @@ module Control.Monad.Run.State
   , modify
   , put
   , get
+  , gets
   , runState
   , evalState
   , execState
@@ -36,6 +37,9 @@ put = modify <<< const
 
 get ∷ ∀ s r. Run (state ∷ STATE s | r) s
 get = liftState $ State id id
+
+gets ∷ ∀ s t r. (s → t) → Run (state ∷ STATE s | r) t
+gets = flip map get
 
 runState ∷ ∀ s r a. s → Run (state ∷ STATE s | r) a → Run r (Tuple s a)
 runState = loop

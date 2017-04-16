@@ -15,5 +15,8 @@
     "purescript-aff": "^3.0.0",
     "purescript-unsafe-coerce": "^3.0.0",
     "purescript-eff": "^3.1.0"
+  },
+  "devDependencies": {
+    "purescript-monad-loops": "^0.4.0"
   }
 }

@@ -1,17 +1,17 @@
 module Control.Monad.Run
-  ( REffect
-  , RBase
-  , RProxy(..)
+  ( Run
   , RunF
-  , Run
+  , RProxy(..)
+  , REffect
+  , RBase
+  , run
+  , runBase
+  , interpret
   , liftEffect
   , liftBase
   , peel
   , send
   , decomp
-  , run
-  , runBase
-  , interpret
   , BaseEff
   , BaseAff
   ) where
@@ -22,7 +22,7 @@ import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (class MonadEff, liftEff)
 import Control.Monad.Free (Free, liftF, runFree, foldFree, substFree, resume)
-import Control.Monad.Rec.Class (class MonadRec)
+import Control.Monad.Rec.Class (class MonadRec, Step(..))
 import Data.Either (Either(..))
 import Data.Newtype (class Newtype, unwrap, wrap, over)
 import Data.Symbol (SProxy(..), class IsSymbol, reflectSymbol)
@@ -31,8 +31,12 @@ import Partial.Unsafe (unsafeCrashWith)
 import Type.Equality (class TypeEquals)
 import Unsafe.Coerce (unsafeCoerce)
 
+-- | Phantom type for effect rows. Effect functors need to be tagged because
+-- | the type level row constraints only works on rows of kind `Type`.
 data REffect (f ∷ Type → Type)
 
+-- | Phantom type the base, or terminal, effect. This may be something like
+-- | `Eff`, `Aff`, or `IO`.
 data RBase (f ∷ Type → Type)
 
 newtype FTag = FTag String
@@ -45,10 +49,41 @@ mkFBox = unsafeCoerce
 runFBox ∷ ∀ a r. (∀ f. Yoneda f a → r) → FBox a → r
 runFBox = unsafeCoerce
 
+-- | A proxy type which links a label with an effect functor.
 data RProxy (sym ∷ Symbol) (f ∷ Type → Type) = RProxy
 
+-- | An opaque instruction in the `Run` Monad. Instructions can be inspected
+-- | using `decomp` and an `RProxy` for a given effect.
 data RunF (r ∷ # Type) a = RunF FTag (FBox a)
 
+-- | An extensible effect Monad, indexed by a set of effect functors. Effects
+-- | are eliminated by interpretation into a pure value or into some base
+-- | effect Monad. The `Run` Monad is an alternative to Monad Transformers,
+-- | and can represent both associative and non-associative effects.
+-- |
+-- | An example using `State` and `Except`:
+-- | ```purescript
+-- | type MyEffects =
+-- |   ( state ∷ STATE Int
+-- |   , except ∷ EXCEPT String
+-- |   , base ∷ BaseEff (console ∷ CONSOLE)
+-- |   )
+-- |
+-- | yesProgram ∷ Run MyEffects Unit
+-- | yesProgram = do
+-- |   whenM (gets (_ < 0)) do
+-- |     throw "Number is less than 0"
+-- |   whileM_ (gets (_ > 0)) do
+-- |     liftEff $ log "Yes"
+-- |     modify (_ - 1)
+-- |
+-- | main =
+-- |   yesProgram
+-- |     # catch (liftEff <<< log)
+-- |     # runState 10
+-- |     # runBase
+-- |     # void
+-- | ````
 newtype Run (r ∷ # Type) a = RunM (Free (RunF r) a)
 
 instance functorRunF ∷ Functor (RunF r) where
@@ -61,6 +96,8 @@ derive newtype instance applicativeRun :: Applicative (Run r)
 derive newtype instance bindRun :: Bind (Run r)
 derive newtype instance monadRun :: Monad (Run r)
 
+-- | Lifts an effect functor into the `Run` Monad according to the provided
+-- | `RProxy` slot.
 liftEffect
   ∷ ∀ sym r1 r2 f a
   . RowCons sym (REffect f) r1 r2
@@ -71,6 +108,7 @@ liftEffect
   → Run r2 a
 liftEffect _ f = RunM $ liftF $ RunF (FTag (reflectSymbol (SProxy ∷ SProxy sym))) (mkFBox (liftYoneda f))
 
+-- | Lifts a base effect into the `Run` Monad (eg. `Eff`, `Aff`, or `IO`).
 liftBase
   ∷ ∀ r f a
   . Functor f
@@ -78,18 +116,24 @@ liftBase
   → Run (base ∷ RBase f | r) a
 liftBase f = RunM $ liftF $ RunF (FTag "base") (mkFBox (liftYoneda f))
 
+-- | Reflects the next instruction or the final value if there are no more
+-- | instructions.
 peel
   ∷ ∀ a r
   . Run r a
   → Either (RunF r (Run r a)) a
 peel (RunM r) = unsafeCoerce (resume r)
 
+-- | Enqueues an instruction in the `Run` Monad.
 send
   ∷ ∀ a r
   . RunF r a
   → Run r a
 send = wrap <<< liftF
 
+-- | Attempts to read an instruction according to the provided `RProxy`. If the
+-- | instruction does not match, it will yield the instruction with the effect
+-- | label removed.
 decomp
   ∷ ∀ sym r1 r2 f a
   . RowCons sym (REffect f) r1 r2
@@ -108,9 +152,11 @@ decomp _ r@(RunF (FTag tag) f) =
   coerceR ∷ RunF r2 a → RunF r1 a
   coerceR = unsafeCoerce
 
+-- | Extracts the value from a fully interpreted program.
 run ∷ ∀ a. Run () a → a
 run = unwrap >>> runFree \_ → unsafeCrashWith "Control.Monad.Run: the impossible happened"
 
+-- | Extracts the value from a program with only base effects.
 runBase
   ∷ ∀ f a
   . MonadRec f
@@ -124,6 +170,7 @@ runBase = unwrap >>> foldFree go
   coerceY ∷ ∀ g. g ~> f
   coerceY = unsafeCoerce
 
+-- | Interprets an effect functor into the base effect, eliminating the label.
 interpret
   ∷ ∀ sym f m r1 r2 r3 a
   . RowCons sym (REffect f) r2 r1
@@ -152,7 +199,20 @@ interpret _ k = over RunM (substFree (\a → liftF (go a)))
 
 data R (r ∷ # Type)
 
+-- Type synonym for using `Eff` as a base effect.
 type BaseEff eff = RBase (Eff eff)
+
+-- Type synonym for using `Aff` as a base effect.
+type BaseAff eff = RBase (Aff eff)
+
+instance monadRecRun ∷ MonadRec (Run r) where
+  tailRecM f = loop
+    where
+    loop a = do
+      b ← f a
+      case b of
+        Done r → pure r
+        Loop n → loop n
 
 instance monadEffRun ∷ (TypeEquals (R rs) (R (base ∷ RBase m | r)), MonadEff eff m) ⇒ MonadEff eff (Run rs) where
   liftEff = coerceR <<< liftBase' <<< liftEff'
@@ -165,8 +225,6 @@ instance monadEffRun ∷ (TypeEquals (R rs) (R (base ∷ RBase m | r)), MonadEff
 
     coerceR ∷ Run (base ∷ RBase m | r) ~> Run rs
     coerceR = unsafeCoerce
-
-type BaseAff eff = RBase (Aff eff)
 
 instance monadAffRun ∷ (TypeEquals (R rs) (R (base ∷ RBase m | r)), MonadAff eff m) ⇒ MonadAff eff (Run rs) where
   liftAff = coerceR <<< liftBase' <<< liftAff'

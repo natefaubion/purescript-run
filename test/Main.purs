@@ -4,9 +4,10 @@ import Prelude
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Console (CONSOLE, logShow, log)
-import Control.Monad.Run (Run, RProxy(..), REffect, liftEffect, interpret, run, runBase, BaseEff)
-import Control.Monad.Run.Except (EXCEPT, runExcept, throw)
-import Control.Monad.Run.State (STATE, runState, get, put, modify)
+import Control.Monad.Rec.Loops (whileM_)
+import Control.Monad.Run (Run, RProxy(..), REffect, liftEffect, liftBase, interpret, run, runBase, BaseEff)
+import Control.Monad.Run.Except (EXCEPT, runExcept, throw, catch)
+import Control.Monad.Run.State (STATE, runState, get, gets, put, modify)
 import Data.Array as Array
 import Data.Foldable (for_)
 
@@ -50,6 +51,20 @@ program3 = do
   name ← listen
   speak $ "Nice to meet you, " <> name <> "!"
 
+type MyEffects =
+  ( state ∷ STATE Int
+  , except ∷ EXCEPT String
+  , base ∷ BaseEff (console ∷ CONSOLE)
+  )
+
+yesProgram ∷ Run MyEffects Unit
+yesProgram = do
+  whenM (gets (_ < 0)) do
+    throw "Number is less than 0"
+  whileM_ (gets (_ > 0)) do
+    liftBase $ log "Yes"
+    modify (_ - 1)
+
 main ∷ Eff (console ∷ CONSOLE) Unit
 main = do
   program "42" # runState "" # runExcept # run # logShow
@@ -64,3 +79,9 @@ main = do
         Speak str a  → log str *> pure a
         Listen reply → pure (reply "Gerald")
     # runBase
+
+  yesProgram
+    # catch (liftBase <<< log)
+    # runState (-1)
+    # runBase
+    # void
