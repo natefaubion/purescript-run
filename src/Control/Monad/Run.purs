@@ -4,11 +4,11 @@ module Control.Monad.Run
   , RProxy(..)
   , RunF
   , Run
-  , liftRun
+  , liftEffect
   , liftBase
   , peel
-  , relay
-  , prj
+  , send
+  , project
   , run
   , runBase
   , BaseEff
@@ -23,8 +23,7 @@ import Control.Monad.Eff.Class (class MonadEff, liftEff)
 import Control.Monad.Free (Free, liftF, runFree, foldFree, resume)
 import Control.Monad.Rec.Class (class MonadRec)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype, unwrap)
+import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Symbol (SProxy(..), class IsSymbol, reflectSymbol)
 import Data.Yoneda (Yoneda, liftYoneda, lowerYoneda)
 import Partial.Unsafe (unsafeCrashWith)
@@ -61,7 +60,7 @@ derive newtype instance applicativeRun :: Applicative (Run r)
 derive newtype instance bindRun :: Bind (Run r)
 derive newtype instance monadRun :: Monad (Run r)
 
-liftRun
+liftEffect
   ∷ ∀ sym r1 r2 f a
   . RowCons sym (REffect f) r1 r2
   ⇒ IsSymbol sym
@@ -69,7 +68,7 @@ liftRun
   ⇒ RProxy sym f
   → f a
   → Run r2 a
-liftRun _ f = RunM $ liftF $ RunF (FTag (reflectSymbol (SProxy ∷ SProxy sym))) (mkFBox (liftYoneda f))
+liftEffect _ f = RunM $ liftF $ RunF (FTag (reflectSymbol (SProxy ∷ SProxy sym))) (mkFBox (liftYoneda f))
 
 liftBase
   ∷ ∀ r f a
@@ -84,34 +83,20 @@ peel
   → Either (RunF r (Run r a)) a
 peel (RunM r) = unsafeCoerce (resume r)
 
-relay
-  ∷ ∀ sym r1 r2 f a b
-  . RowCons sym (REffect f) r1 r2
-  ⇒ IsSymbol sym
-  ⇒ RProxy sym f
-  → (a → Run r1 b)
-  → (f a → Run r1 b)
-  → RunF r2 a
-  → Run r1 b
-relay _ loop k r@(RunF (FTag tag) f) =
-  if tag == reflectSymbol (SProxy ∷ SProxy sym)
-    then k (runFBox (coerceN <<< lowerYoneda) f)
-    else RunM (liftF (coerceR r)) >>= loop
-  where
-  coerceN ∷ ∀ g. g ~> f
-  coerceN = unsafeCoerce
+send
+  ∷ ∀ a r
+  . RunF r a
+  → Run r a
+send = wrap <<< liftF
 
-  coerceR ∷ RunF r2 a → RunF r1 a
-  coerceR = unsafeCoerce
-
-prj
+project
   ∷ ∀ sym r1 r2 f a
   . RowCons sym (REffect f) r1 r2
   ⇒ IsSymbol sym
   ⇒ RProxy sym f
   → RunF r2 a
   → Either (RunF r1 a) (f a)
-prj _ r@(RunF (FTag tag) f) =
+project _ r@(RunF (FTag tag) f) =
   if tag == reflectSymbol (SProxy ∷ SProxy sym)
     then Right (runFBox (coerceN <<< lowerYoneda) f)
     else Left (coerceR r)

@@ -7,11 +7,12 @@ module Control.Monad.Run.Except
   , runExcept
   , runFail
   , throw
+  , fail
   , catch
   ) where
 
 import Prelude
-import Control.Monad.Run (Run, REffect, RProxy(..), liftRun, relay, peel)
+import Control.Monad.Run (Run, REffect, RProxy(..), liftEffect, peel, send, project)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe(..))
 
@@ -27,26 +28,39 @@ _EXCEPT ∷ ∀ e. RProxy "except" (Except e)
 _EXCEPT = RProxy
 
 liftExcept ∷ ∀ e a r. Except e a → Run (except ∷ EXCEPT e | r) a
-liftExcept = liftRun _EXCEPT
+liftExcept = liftEffect _EXCEPT
 
 throw ∷ ∀ e a r. e → Run (except ∷ EXCEPT e | r) a
 throw = liftExcept <<< Except
 
+fail ∷ ∀ a r. Run (except ∷ FAIL | r) a
+fail = throw unit
+
 catch ∷ ∀ e a r. (e → Run r a) → Run (except ∷ EXCEPT e | r) a → Run r a
 catch = loop
   where
-  handle = relay _EXCEPT
+  handle = project _EXCEPT
   loop k r = case peel r of
-    Left a  → handle (loop k) (\(Except e) → k e) a
-    Right a → pure a
+    Left a → case handle a of
+      Left a' →
+        send a' >>= catch k
+      Right (Except e) →
+        k e
+    Right a →
+      pure a
 
 runExcept ∷ ∀ e a r. Run (except ∷ EXCEPT e | r) a → Run r (Either e a)
 runExcept = loop
   where
-  handle = relay _EXCEPT
+  handle = project _EXCEPT
   loop r = case peel r of
-    Left a  → handle loop (\(Except e) → pure (Left e)) a
-    Right a → pure (Right a)
+    Left a → case handle a of
+      Left a' →
+        send a' >>= runExcept
+      Right (Except e) →
+        pure (Left e)
+    Right a →
+      pure (Right a)
 
 runFail ∷ ∀ a r. Run (except ∷ FAIL | r) a → Run r (Maybe a)
 runFail = map (either (const Nothing) Just) <<< runExcept
