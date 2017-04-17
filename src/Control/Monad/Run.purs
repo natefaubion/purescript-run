@@ -21,7 +21,7 @@ import Control.Monad.Aff (Aff)
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (class MonadEff, liftEff)
-import Control.Monad.Free (Free, liftF, runFree, foldFree, substFree, resume)
+import Control.Monad.Free (Free, liftF, runFree, foldFree, hoistFree, resume)
 import Control.Monad.Rec.Class (class MonadRec, Step(..))
 import Data.Either (Either(..))
 import Data.Newtype (class Newtype, unwrap, wrap, over)
@@ -106,7 +106,13 @@ liftEffect
   ⇒ RProxy sym f
   → f a
   → Run r2 a
-liftEffect _ f = RunM $ liftF $ RunF (FTag (reflectSymbol (SProxy ∷ SProxy sym))) (mkFBox (liftYoneda f))
+liftEffect _ f = RunM $ liftF $ RunF tag box
+  where
+  tag ∷ FTag
+  tag = FTag (reflectSymbol (SProxy ∷ SProxy sym))
+
+  box ∷ FBox a
+  box = mkFBox (liftYoneda f)
 
 -- | Lifts a base effect into the `Run` Monad (eg. `Eff`, `Aff`, or `IO`).
 liftBase
@@ -114,7 +120,13 @@ liftBase
   . Functor f
   ⇒ f a
   → Run (base ∷ RBase f | r) a
-liftBase f = RunM $ liftF $ RunF (FTag "base") (mkFBox (liftYoneda f))
+liftBase f = RunM $ liftF $ RunF tag box
+  where
+  tag ∷ FTag
+  tag = FTag "base"
+
+  box ∷ FBox a
+  box = mkFBox (liftYoneda f)
 
 -- | Reflects the next instruction or the final value if there are no more
 -- | instructions.
@@ -122,7 +134,10 @@ peel
   ∷ ∀ a r
   . Run r a
   → Either (RunF r (Run r a)) a
-peel (RunM r) = unsafeCoerce (resume r)
+peel (RunM r) = coerceR (resume r)
+  where
+  coerceR ∷ Either (RunF r (Free (RunF r) a)) a → Either (RunF r (Run r a)) a
+  coerceR = unsafeCoerce
 
 -- | Enqueues an instruction in the `Run` Monad.
 send
@@ -180,10 +195,10 @@ interpret
   → (f ~> m)
   → Run r1 a
   → Run r3 a
-interpret _ k = over RunM (substFree (\a → liftF (go a)))
+interpret _ k = over RunM (hoistFree go)
   where
-  tag =
-    reflectSymbol (SProxy ∷ SProxy sym)
+  tag ∷ String
+  tag = reflectSymbol (SProxy ∷ SProxy sym)
 
   go ∷ RunF r1 ~> RunF r3
   go r@(RunF (FTag tag') f) =
