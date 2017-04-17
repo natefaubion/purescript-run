@@ -215,25 +215,13 @@ instance monadRecRun ∷ MonadRec (Run r) where
         Loop n → loop n
 
 instance monadEffRun ∷ (TypeEquals (R rs) (R (base ∷ RBase m | r)), MonadEff eff m) ⇒ MonadEff eff (Run rs) where
-  liftEff = coerceR <<< liftBase' <<< liftEff'
+  liftEff = coerceR <<< liftBase <<< liftEff
     where
-    liftEff' ∷ ∀ a. Eff eff a → m a
-    liftEff' = liftEff
-
-    liftBase' ∷ ∀ a. m a → Run (base ∷ RBase m | r) a
-    liftBase' = liftBase
-
     coerceR ∷ Run (base ∷ RBase m | r) ~> Run rs
     coerceR = unsafeCoerce
 
 instance monadAffRun ∷ (TypeEquals (R rs) (R (base ∷ RBase m | r)), MonadAff eff m) ⇒ MonadAff eff (Run rs) where
-  liftAff = coerceR <<< liftBase' <<< liftAff'
+  liftAff = coerceR <<< liftBase <<< liftAff
     where
-    liftAff' ∷ ∀ a. Aff eff a → m a
-    liftAff' = liftAff
-
-    liftBase' ∷ ∀ a. m a → Run (base ∷ RBase m | r) a
-    liftBase' = liftBase
-
     coerceR ∷ Run (base ∷ RBase m | r) ~> Run rs
     coerceR = unsafeCoerce
