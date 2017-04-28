@@ -1,19 +1,17 @@
 module Control.Monad.Run
   ( Run
-  , RunF
-  , RProxy(..)
-  , REffect
-  , RBase
   , run
   , runBase
   , interpret
   , liftEffect
+  , withEffect
   , liftBase
   , peel
   , send
-  , decomp
   , BaseEff
   , BaseAff
+  , module Data.Functor.Variant
+  , module Exports
   ) where
 
 import Prelude
@@ -23,38 +21,14 @@ import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (class MonadEff, liftEff)
 import Control.Monad.Free (Free, liftF, runFree, foldFree, hoistFree, resume)
 import Control.Monad.Rec.Class (class MonadRec, Step(..))
-import Data.Either (Either(..))
-import Data.Newtype (class Newtype, unwrap, wrap, over)
-import Data.Symbol (SProxy(..), class IsSymbol, reflectSymbol)
-import Data.Yoneda (Yoneda, liftYoneda, lowerYoneda, hoistYoneda)
+import Data.Either (Either)
+import Data.Functor.Variant (VariantF, FProxy(..), inj, on, case_, default)
+import Data.Newtype (class Newtype, unwrap, over)
+import Data.Symbol (SProxy(..), class IsSymbol)
+import Data.Symbol (SProxy(..)) as Exports
 import Partial.Unsafe (unsafeCrashWith)
 import Type.Equality (class TypeEquals)
 import Unsafe.Coerce (unsafeCoerce)
-
--- | Phantom type for effect rows. Effect functors need to be tagged because
--- | the type level row constraints only works on rows of kind `Type`.
-data REffect (f ∷ Type → Type)
-
--- | Phantom type the base, or terminal, effect. This may be something like
--- | `Eff`, `Aff`, or `IO`.
-data RBase (f ∷ Type → Type)
-
-newtype FTag = FTag String
-
-data FBox a
-
-mkFBox ∷ ∀ a f. Yoneda f a → FBox a
-mkFBox = unsafeCoerce
-
-runFBox ∷ ∀ a r. (∀ f. Yoneda f a → r) → FBox a → r
-runFBox = unsafeCoerce
-
--- | A proxy type which links a label with an effect functor.
-data RProxy (sym ∷ Symbol) (f ∷ Type → Type) = RProxy
-
--- | An opaque instruction in the `Run` Monad. Instructions can be inspected
--- | using `decomp` and an `RProxy` for a given effect.
-data RunF (r ∷ # Type) a = RunF FTag (FBox a)
 
 -- | An extensible effect Monad, indexed by a set of effect functors. Effects
 -- | are eliminated by interpretation into a pure value or into some base
@@ -84,10 +58,7 @@ data RunF (r ∷ # Type) a = RunF FTag (FBox a)
 -- |     # runBase
 -- |     # void
 -- | ````
-newtype Run (r ∷ # Type) a = RunM (Free (RunF r) a)
-
-instance functorRunF ∷ Functor (RunF r) where
-  map f (RunF tag ex) = RunF tag $ runFBox (mkFBox <<< map f) ex
+newtype Run (r ∷ # Type) a = RunM (Free (VariantF r) a)
 
 derive instance newtypeRun ∷ Newtype (Run r a) _
 derive newtype instance functorRun :: Functor (Run r)
@@ -97,75 +68,51 @@ derive newtype instance bindRun :: Bind (Run r)
 derive newtype instance monadRun :: Monad (Run r)
 
 -- | Lifts an effect functor into the `Run` Monad according to the provided
--- | `RProxy` slot.
+-- | `SProxy` slot.
 liftEffect
   ∷ ∀ sym r1 r2 f a
-  . RowCons sym (REffect f) r1 r2
+  . RowCons sym (FProxy f) r1 r2
   ⇒ IsSymbol sym
   ⇒ Functor f
-  ⇒ RProxy sym f
+  ⇒ SProxy sym
   → f a
   → Run r2 a
-liftEffect _ f = RunM $ liftF $ RunF tag box
-  where
-  tag ∷ FTag
-  tag = FTag (reflectSymbol (SProxy ∷ SProxy sym))
+liftEffect p = RunM <<< liftF <<< inj p
 
-  box ∷ FBox a
-  box = mkFBox (liftYoneda f)
+withEffect
+  ∷ ∀ sym r1 r2 f a
+  . RowCons sym (FProxy f) r1 r2
+  ⇒ SProxy sym
+  → FProxy f
+  → Run r1 a
+  → Run r2 a
+withEffect _ _ = unsafeCoerce
 
 -- | Lifts a base effect into the `Run` Monad (eg. `Eff`, `Aff`, or `IO`).
 liftBase
   ∷ ∀ r f a
   . Functor f
   ⇒ f a
-  → Run (base ∷ RBase f | r) a
-liftBase f = RunM $ liftF $ RunF tag box
-  where
-  tag ∷ FTag
-  tag = FTag "base"
-
-  box ∷ FBox a
-  box = mkFBox (liftYoneda f)
+  → Run (base ∷ FProxy f | r) a
+liftBase = RunM <<< liftF <<< inj (SProxy ∷ SProxy "base")
 
 -- | Reflects the next instruction or the final value if there are no more
 -- | instructions.
 peel
   ∷ ∀ a r
   . Run r a
-  → Either (RunF r (Run r a)) a
+  → Either (VariantF r (Run r a)) a
 peel (RunM r) = coerceR (resume r)
   where
-  coerceR ∷ Either (RunF r (Free (RunF r) a)) a → Either (RunF r (Run r a)) a
+  coerceR ∷ Either (VariantF r (Free (VariantF r) a)) a → Either (VariantF r (Run r a)) a
   coerceR = unsafeCoerce
 
 -- | Enqueues an instruction in the `Run` Monad.
 send
   ∷ ∀ a r
-  . RunF r a
+  . VariantF r a
   → Run r a
-send = wrap <<< liftF
-
--- | Attempts to read an instruction according to the provided `RProxy`. If the
--- | instruction does not match, it will yield the instruction with the effect
--- | label removed.
-decomp
-  ∷ ∀ sym r1 r2 f a
-  . RowCons sym (REffect f) r1 r2
-  ⇒ IsSymbol sym
-  ⇒ RProxy sym f
-  → RunF r2 a
-  → Either (RunF r1 a) (f a)
-decomp _ r@(RunF (FTag tag) f) =
-  if tag == reflectSymbol (SProxy ∷ SProxy sym)
-    then Right (runFBox (coerceN <<< lowerYoneda) f)
-    else Left (coerceR r)
-  where
-  coerceN ∷ ∀ g. g ~> f
-  coerceN = unsafeCoerce
-
-  coerceR ∷ RunF r2 a → RunF r1 a
-  coerceR = unsafeCoerce
+send = RunM <<< liftF
 
 -- | Extracts the value from a fully interpreted program.
 run ∷ ∀ a. Run () a → a
@@ -175,50 +122,42 @@ run = unwrap >>> runFree \_ → unsafeCrashWith "Control.Monad.Run: the impossib
 runBase
   ∷ ∀ f a
   . MonadRec f
-  ⇒ Run (base ∷ RBase f) a
+  ⇒ Run (base ∷ FProxy f) a
   → f a
 runBase = unwrap >>> foldFree go
   where
-  go ∷ RunF (base ∷ RBase f) ~> f
-  go (RunF _ fb) = runFBox (coerceY <<< lowerYoneda) fb
-
-  coerceY ∷ ∀ g. g ~> f
-  coerceY = unsafeCoerce
+  go ∷ VariantF (base ∷ FProxy f) ~> f
+  go = case_ # on (SProxy ∷ SProxy "base") id
 
 -- | Interprets an effect functor into the base effect, eliminating the label.
 interpret
   ∷ ∀ sym f m r1 r2 r3 a
-  . RowCons sym (REffect f) r2 r1
-  ⇒ RowCons "base" (RBase m) r2 r3
+  . RowCons sym (FProxy f) r2 r1
+  ⇒ RowCons "base" (FProxy m) r2 r3
   ⇒ IsSymbol sym
-  ⇒ RProxy sym f
+  ⇒ Functor m
+  ⇒ SProxy sym
   → (f ~> m)
   → Run r1 a
   → Run r3 a
-interpret _ k = over RunM (hoistFree go)
+interpret p k = over RunM (hoistFree go)
   where
-  tag ∷ String
-  tag = reflectSymbol (SProxy ∷ SProxy sym)
+  go ∷ VariantF r1 ~> VariantF r3
+  go = on p (coerceB <<< inj (SProxy ∷ SProxy "base") <<< k) coerceR
 
-  go ∷ RunF r1 ~> RunF r3
-  go r@(RunF (FTag tag') f) =
-    if tag == tag'
-      then RunF (FTag "base") (runFBox (mkFBox <<< hoistYoneda (k <<< coerceN)) f)
-      else coerceR r
+  coerceB ∷ VariantF (base ∷ FProxy m | r2) ~> VariantF r3
+  coerceB = unsafeCoerce
 
-  coerceN ∷ ∀ g. g ~> f
-  coerceN = unsafeCoerce
-
-  coerceR ∷ RunF r1 ~> RunF r3
+  coerceR ∷ VariantF r2 ~> VariantF r3
   coerceR = unsafeCoerce
 
 data R (r ∷ # Type)
 
 -- Type synonym for using `Eff` as a base effect.
-type BaseEff eff = RBase (Eff eff)
+type BaseEff eff = FProxy (Eff eff)
 
 -- Type synonym for using `Aff` as a base effect.
-type BaseAff eff = RBase (Aff eff)
+type BaseAff eff = FProxy (Aff eff)
 
 instance monadRecRun ∷ MonadRec (Run r) where
   tailRecM f = loop
@@ -229,14 +168,14 @@ instance monadRecRun ∷ MonadRec (Run r) where
         Done r → pure r
         Loop n → loop n
 
-instance monadEffRun ∷ (TypeEquals (R rs) (R (base ∷ RBase m | r)), MonadEff eff m) ⇒ MonadEff eff (Run rs) where
+instance monadEffRun ∷ (TypeEquals (R rs) (R (base ∷ FProxy m | r)), MonadEff eff m) ⇒ MonadEff eff (Run rs) where
   liftEff = coerceR <<< liftBase <<< liftEff
     where
-    coerceR ∷ Run (base ∷ RBase m | r) ~> Run rs
+    coerceR ∷ Run (base ∷ FProxy m | r) ~> Run rs
     coerceR = unsafeCoerce
 
-instance monadAffRun ∷ (TypeEquals (R rs) (R (base ∷ RBase m | r)), MonadAff eff m) ⇒ MonadAff eff (Run rs) where
+instance monadAffRun ∷ (TypeEquals (R rs) (R (base ∷ FProxy m | r)), MonadAff eff m) ⇒ MonadAff eff (Run rs) where
   liftAff = coerceR <<< liftBase <<< liftAff
     where
-    coerceR ∷ Run (base ∷ RBase m | r) ~> Run rs
+    coerceR ∷ Run (base ∷ FProxy m | r) ~> Run rs
     coerceR = unsafeCoerce
