@@ -1,4 +1,4 @@
-module Control.Monad.Run.Reader
+module Run.Reader
   ( Reader(..)
   , READER
   , _reader
@@ -9,9 +9,9 @@ module Control.Monad.Run.Reader
   ) where
 
 import Prelude
-import Control.Monad.Run (Run, SProxy(..), FProxy)
-import Control.Monad.Run as Run
 import Data.Either (Either(..))
+import Run (Run, SProxy(..), FProxy)
+import Run as Run
 
 newtype Reader e a = Reader (e → a)
 

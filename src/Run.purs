@@ -1,4 +1,4 @@
-module Control.Monad.Run
+module Run
   ( Run
   , run
   , runBase

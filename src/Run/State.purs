@@ -1,4 +1,4 @@
-module Control.Monad.Run.State
+module Run.State
   ( State(..)
   , STATE
   , _state
@@ -13,10 +13,10 @@ module Control.Monad.Run.State
   ) where
 
 import Prelude
-import Control.Monad.Run (Run, SProxy(..), FProxy)
-import Control.Monad.Run as Run
 import Data.Either (Either(..))
 import Data.Tuple (Tuple(..), fst, snd)
+import Run (Run, SProxy(..), FProxy)
+import Run as Run
 
 data State s a = State (s → s) (s → a)
 

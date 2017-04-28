@@ -1,4 +1,4 @@
-module Control.Monad.Run.Writer
+module Run.Writer
   ( Writer(..)
   , WRITER
   , _writer
@@ -10,11 +10,11 @@ module Control.Monad.Run.Writer
   ) where
 
 import Prelude
-import Control.Monad.Run (Run, SProxy(..), FProxy)
-import Control.Monad.Run as Run
 import Data.Either (Either(..))
 import Data.Monoid (class Monoid, mempty)
 import Data.Tuple (Tuple(..))
+import Run (Run, SProxy(..), FProxy)
+import Run as Run
 
 data Writer w a = Writer w a
 

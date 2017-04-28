@@ -1,4 +1,4 @@
-module Control.Monad.Run.Except
+module Run.Except
   ( Except(..)
   , EXCEPT
   , FAIL
@@ -12,10 +12,10 @@ module Control.Monad.Run.Except
   ) where
 
 import Prelude
-import Control.Monad.Run (Run, SProxy(..), FProxy)
-import Control.Monad.Run as Run
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe(..))
+import Run (Run, SProxy(..), FProxy)
+import Run as Run
 
 newtype Except e a = Except e
 

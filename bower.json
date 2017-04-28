@@ -36,7 +36,8 @@
     "purescript-tuples": "^4.0.0",
     "purescript-type-equality": "^2.0.0",
     "purescript-unsafe-coerce": "^3.0.0",
-    "purescript-variant": "^1.1.0"
+    "purescript-variant": "^1.1.0",
+    "purescript-profunctor": "^3.0.0"
   },
   "devDependencies": {
     "purescript-monad-loops": "^0.4.0"
