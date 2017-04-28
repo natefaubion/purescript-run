@@ -5,11 +5,12 @@ import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Console (CONSOLE, logShow, log)
 import Control.Monad.Rec.Loops (whileM_)
-import Control.Monad.Run (Run, RProxy(..), REffect, liftEffect, liftBase, interpret, run, runBase, BaseEff)
-import Control.Monad.Run.Except (EXCEPT, runExcept, throw, catch)
-import Control.Monad.Run.State (STATE, runState, get, gets, put, modify)
 import Data.Array as Array
 import Data.Foldable (for_)
+import Test.Streaming as TS
+import Run (Run, FProxy, SProxy(..), liftEffect, liftBase, interpret, run, runBase, BaseEff)
+import Run.Except (EXCEPT, runExcept, throw, catch)
+import Run.State (STATE, runState, get, gets, put, modify)
 
 data Talk a
   = Speak String a
@@ -17,16 +18,16 @@ data Talk a
 
 derive instance functorTalk ∷ Functor Talk
 
-type TALK = REffect Talk
+type TALK = FProxy Talk
 
-_TALK ∷ RProxy "talk" Talk
-_TALK = RProxy
+_talk ∷ SProxy "talk"
+_talk = SProxy
 
 speak ∷ ∀ r. String → Run (talk ∷ TALK | r) Unit
-speak a = liftEffect _TALK $ Speak a unit
+speak a = liftEffect _talk $ Speak a unit
 
 listen ∷ ∀ r. Run (talk ∷ TALK | r) String
-listen = liftEffect _TALK $ Listen id
+listen = liftEffect _talk $ Listen id
 
 ---
 
@@ -75,7 +76,7 @@ main = do
   logShow res1
 
   program3
-    # interpret _TALK case _ of
+    # interpret _talk case _ of
         Speak str a  → log str *> pure a
         Listen reply → pure (reply "Gerald")
     # runBase
@@ -85,3 +86,5 @@ main = do
     # runState (10)
     # runBase
     # void
+
+  TS.main

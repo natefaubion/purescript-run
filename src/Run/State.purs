@@ -1,7 +1,7 @@
-module Control.Monad.Run.State
+module Run.State
   ( State(..)
   , STATE
-  , _STATE
+  , _state
   , liftState
   , modify
   , put
@@ -13,21 +13,22 @@ module Control.Monad.Run.State
   ) where
 
 import Prelude
-import Control.Monad.Run (Run, REffect, RProxy(..), liftEffect, peel, send, decomp)
 import Data.Either (Either(..))
 import Data.Tuple (Tuple(..), fst, snd)
+import Run (Run, SProxy(..), FProxy)
+import Run as Run
 
 data State s a = State (s → s) (s → a)
 
 derive instance functorState ∷ Functor (State s)
 
-type STATE s = REffect (State s)
+type STATE s = FProxy (State s)
 
-_STATE ∷ ∀ s. RProxy "state" (State s)
-_STATE = RProxy
+_state ∷ SProxy "state"
+_state = SProxy
 
 liftState ∷ ∀ s a r. State s a → Run (state ∷ STATE s | r) a
-liftState = liftEffect _STATE
+liftState = Run.liftEffect _state
 
 modify ∷ ∀ s r. (s → s) → Run (state ∷ STATE s | r) Unit
 modify f = liftState $ State f (const unit)
@@ -44,14 +45,14 @@ gets = flip map get
 runState ∷ ∀ s r a. s → Run (state ∷ STATE s | r) a → Run r (Tuple s a)
 runState = loop
   where
-  handle = decomp _STATE
-  loop s r = case peel r of
+  handle = Run.on _state Left Right
+  loop s r = case Run.peel r of
     Left a → case handle a of
-      Left a' →
-        send a' >>= runState s
-      Right (State t k) →
+      Left (State t k) →
         let s' = t s
         in loop s' (k s')
+      Right a' →
+        Run.send a' >>= runState s
     Right a →
       pure (Tuple s a)
 

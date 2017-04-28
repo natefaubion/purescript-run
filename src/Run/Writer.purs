@@ -1,7 +1,7 @@
-module Control.Monad.Run.Writer
+module Run.Writer
   ( Writer(..)
   , WRITER
-  , _WRITER
+  , _writer
   , liftWriter
   , tell
   , censor
@@ -10,22 +10,23 @@ module Control.Monad.Run.Writer
   ) where
 
 import Prelude
-import Control.Monad.Run (Run, REffect, RProxy(..), liftEffect, peel, send, decomp)
 import Data.Either (Either(..))
 import Data.Monoid (class Monoid, mempty)
 import Data.Tuple (Tuple(..))
+import Run (Run, SProxy(..), FProxy)
+import Run as Run
 
 data Writer w a = Writer w a
 
 derive instance functorWriter ∷ Functor (Writer w)
 
-type WRITER w = REffect (Writer w)
+type WRITER w = FProxy (Writer w)
 
-_WRITER ∷ ∀ w. RProxy "writer" (Writer w)
-_WRITER = RProxy
+_writer ∷ SProxy "writer"
+_writer = SProxy
 
 liftWriter ∷ ∀ w a r. Writer w a → Run (writer ∷ WRITER w | r) a
-liftWriter = liftEffect _WRITER
+liftWriter = Run.liftEffect _writer
 
 tell ∷ ∀ w r. w → Run (writer ∷ WRITER w | r) Unit
 tell w = liftWriter (Writer w unit)
@@ -33,27 +34,27 @@ tell w = liftWriter (Writer w unit)
 censor ∷ ∀ w a r. (w → w) → Run (writer ∷ WRITER w | r) a → Run (writer ∷ WRITER w | r) a
 censor = loop
   where
-  handle = decomp _WRITER
-  loop f r = case peel r of
+  handle = Run.on _writer Left Right
+  loop f r = case Run.peel r of
     Left a → case handle a of
-      Left _ →
-        send a >>= censor f
-      Right (Writer w n) → do
+      Left (Writer w n) → do
         tell (f w)
         censor f n
+      Right _ →
+        Run.send a >>= censor f
     Right a →
       pure a
 
 foldWriter ∷ ∀ w b a r. (b → w → b) → b → Run (writer ∷ WRITER w | r) a → Run r (Tuple b a)
 foldWriter = loop
   where
-  handle = decomp _WRITER
-  loop k w r = case peel r of
+  handle = Run.on _writer Left Right
+  loop k w r = case Run.peel r of
     Left a → case handle a of
-      Left a' →
-        send a' >>= foldWriter k w
-      Right (Writer w' n) →
+      Left (Writer w' n) →
         loop k (k w w') n
+      Right a' →
+        Run.send a' >>= foldWriter k w
     Right a →
       pure (Tuple w a)
 
