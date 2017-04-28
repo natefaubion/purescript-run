@@ -4,7 +4,7 @@ import Prelude hiding (map)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
 import Run (Run, runBase, liftBase, BaseEff)
-import Run.Streaming (Producer, Consumer, Transformer, (!>), yield, await)
+import Run.Streaming (Producer, Consumer, Transformer, (!>), (!<), yield, await)
 
 forever ∷ ∀ r a b. Run r a → Run r b
 forever go = go >>= \_ → forever go
@@ -30,8 +30,15 @@ toConsole ∷ ∀ eff r a. Consumer (base ∷ BaseEff (console ∷ CONSOLE | eff
 toConsole = forever (await >>= log >>> liftBase)
 
 main ∷ Eff (console ∷ CONSOLE) Unit
-main = runBase $
-  naturals
-  !> take 10
-  !> map (show >>> append "Stream: ")
-  !> toConsole
+main = do
+  runBase $
+    naturals
+      !> take 10
+      !> map (show >>> append "Push: ")
+      !> toConsole
+
+  runBase $
+    toConsole
+      !< map (append "Pull: " <<< show)
+      !< take 10
+      !< naturals

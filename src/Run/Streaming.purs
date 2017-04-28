@@ -145,4 +145,4 @@ infixl 6 push as !>
 pull ∷ ∀ r a o. Consumer r o a → Producer r o a → Run r a
 pull ra rb = join $ fuse <$> runConsumer ra <*> runProducer rb
 
-infixl 6 pull as !<
+infixr 6 pull as !<
