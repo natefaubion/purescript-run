@@ -4,7 +4,6 @@ module Run
   , runBase
   , interpret
   , liftEffect
-  , withEffect
   , liftBase
   , peel
   , send
@@ -78,15 +77,6 @@ liftEffect
   → f a
   → Run r2 a
 liftEffect p = RunM <<< liftF <<< inj p
-
-withEffect
-  ∷ ∀ sym r1 r2 f a
-  . RowCons sym (FProxy f) r1 r2
-  ⇒ SProxy sym
-  → FProxy f
-  → Run r1 a
-  → Run r2 a
-withEffect _ _ = unsafeCoerce
 
 -- | Lifts a base effect into the `Run` Monad (eg. `Eff`, `Aff`, or `IO`).
 liftBase
