@@ -1,56 +1,33 @@
--- | This module defines primitive combinators for both push and pull streams.
--- |
--- | ```purescript
--- | map ∷ ∀ x y r a. (x → y) → Transformer r x y a
--- | map f = forever do
--- |   x ← await
--- |   yield (f x)
--- |
--- | take ∷ ∀ x r. Int → Transformer r x x Unit
--- | take n
--- |   | n <= 0    = pure unit
--- |   | otherwise = do
--- |       await >>= yield
--- |       take (n - 1)
--- |
--- | naturals ∷ ∀ r a. Producer r Int a
--- | naturals = go 1
--- |   where
--- |   go n = do
--- |     yield n
--- |     go (n + 1)
--- |
--- | toConsole ∷ ∀ eff r a. Consumer (base ∷ BaseEff (console ∷ CONSOLE | eff) | r) String a
--- | toConsole = forever (await >>= log >>> liftBase)
--- |
--- | main ∷ Eff (console ∷ CONSOLE) Unit
--- | main = runBase $
--- |   naturals
--- |   !> take 100
--- |   !> map show
--- |   !> toConsole
--- | ```
+-- | This module defines primitives for bidirectional streams analagous to
+-- | the Haskell `Pipes` library. Namely, streams may be either pull or pull
+-- | and can propagate information both upstream and downstream.
 
 module Run.Streaming
   ( Step(..)
+  , STEP
   , YIELD
   , AWAIT
+  , REQUEST
+  , RESPOND
   , _yield
   , _await
   , yield
   , await
+  , request
+  , respond
   , Resume(..)
   , Producer
   , Consumer
   , Transformer
+  , Client
+  , Server
+  , Pipe
   , runStep
-  , runConsumer
-  , runProducer
+  , runYield
+  , runAwait
   , fuse
-  , push
-  , (!>)
-  , pull
-  , (!<)
+  , interleave
+  , substitute
   ) where
 
 import Prelude
@@ -64,27 +41,61 @@ data Step i o a = Step o (i → a)
 
 derive instance functorStep ∷ Functor (Step i o)
 
-type YIELD a = FProxy (Step Unit a)
+type STEP i o = FProxy (Step i o)
+
+type YIELD a = STEP Unit a
+
+type AWAIT a = STEP a Unit
+
+type REQUEST req res = STEP res req
+
+type RESPOND req res = STEP req res
 
 _yield ∷ SProxy "yield"
 _yield = SProxy
 
-liftYield ∷ ∀ o r.  Step Unit o ~> Run (yield ∷ YIELD o | r)
-liftYield = Run.liftEffect _yield
-
-yield ∷ ∀ o r. o → Run (yield ∷ YIELD o | r) Unit
-yield o = liftYield $ Step o id
-
-type AWAIT a = FProxy (Step a Unit)
-
 _await ∷ SProxy "await"
 _await = SProxy
 
-liftAwait ∷ ∀ i r. Step i Unit ~> Run (await ∷ AWAIT i | r)
+liftYield ∷ ∀ req res r.  Step res req ~> Run (yield ∷ STEP res req | r)
+liftYield = Run.liftEffect _yield
+
+liftAwait ∷ ∀ req res r. Step req res ~> Run (await ∷ STEP req res | r)
 liftAwait = Run.liftEffect _await
 
+-- | Yields a response and waits for a request.
+respond ∷ ∀ req res r. res → Run (yield ∷ RESPOND req res | r) req
+respond res = liftYield (Step res id)
+
+-- | Issues a request and awaits a response.
+request ∷ ∀ req res r. req → Run (await ∷ REQUEST req res | r) res
+request req = liftAwait (Step req id)
+
+-- | Yields a value to be consumed downstream.
+yield ∷ ∀ o r. o → Run (yield ∷ YIELD o | r) Unit
+yield = respond
+
+-- | Awaits a value upstream.
 await ∷ ∀ i r. Run (await ∷ AWAIT i | r) i
-await = liftAwait $ Step unit id
+await = request unit
+
+-- | Producers yield values of type `o` using effects `r`.
+type Producer r o = Run (yield ∷ YIELD o | r)
+
+-- | Consumers await values of type `i` using effects `r`.
+type Consumer r i = Run (await ∷ AWAIT i | r)
+
+-- | Transformers await values `i` and yield values `o` using effects `r`.
+type Transformer r i o = Run (await ∷ AWAIT i, yield ∷ YIELD o | r)
+
+-- | Servers reply to requests `req` with responses `res` using effects `r`.
+type Server r req res = Run (yield ∷ RESPOND req res | r)
+
+-- | Clients issue requests `req` and await responses `res` using effects `r`.
+type Client r req res = Run (await ∷ REQUEST req res | r)
+
+-- | A full bidirectional Pipe acts as an upstream Client and a downstream Server.
+type Pipe r req res req' res' = Run (await ∷ REQUEST req res, yield ∷ RESPOND req' res' | r)
 
 data Resume r a i o
   = Next o (i → Run r (Resume r a i o))
@@ -99,12 +110,6 @@ instance profunctorResume ∷ Profunctor (Resume r a) where
   dimap f g = case _ of
     Next o k → Next (g o) (dimap f (map (dimap f g)) k)
     Done a   → Done a
-
-type Producer r o a = Run (yield ∷ YIELD o | r) a
-
-type Consumer r i a = Run (await ∷ AWAIT i | r) a
-
-type Transformer r i o a = Run (await ∷ AWAIT i, yield ∷ YIELD o | r) a
 
 runStep
   ∷ ∀ sym i o r1 r2 a
@@ -125,24 +130,31 @@ runStep p = loop
     Right a →
       pure (Done a)
 
-runProducer ∷ ∀ r a o. Producer r o a → Run r (Resume r a Unit o)
-runProducer = runStep _yield
+runYield ∷ ∀ r a i o. Server r i o a → Run r (Resume r a i o)
+runYield = runStep _yield
 
-runConsumer ∷ ∀ r a i. Consumer r i a → Run r (Resume r a i Unit)
-runConsumer = runStep _await
+runAwait ∷ ∀ r a i o. Client r i o a → Run r (Resume r a o i)
+runAwait = runStep _await
 
-fuse ∷ ∀ i o r a. Resume r a i o → Resume r a o i → Run r a
+-- | Pairs inputs and outputs with a left bias.
+fuse ∷ ∀ r a i o. Resume r a i o → Resume r a o i → Run r a
 fuse = case _, _ of
   Next o k, Next i j → join $ fuse <$> k i <*> j o
   Done x, _ → pure x
   _, Done x → pure x
 
-push ∷ ∀ r a o. Producer r o a → Consumer r o a → Run r a
-push ra rb = join $ fuse <$> runProducer ra <*> runConsumer rb
+-- | Subsitutes the outputs of the second argument with the continuation of the
+-- | first argument, and vice versa, interleaving the two.
+interleave ∷ ∀ r a i o. (o → Run r (Resume r a o i)) → Resume r a i o → Run r a
+interleave k = case _ of
+  Next o next → k o >>= interleave next
+  Done a → pure a
 
-infixl 6 push as !>
-
-pull ∷ ∀ r a o. Consumer r o a → Producer r o a → Run r a
-pull ra rb = join $ fuse <$> runConsumer ra <*> runProducer rb
-
-infixr 6 pull as !<
+-- | Substitutes the outputs of the second argument with the effects of the
+-- | first argument, feeding the result back in to the stream.
+substitute ∷ ∀ r a i o. (o → Run r i) → Resume r a i o → Run r a
+substitute k = go
+  where
+  go = case _ of
+    Next o next → k o >>= next >>= go
+    Done a → pure a
