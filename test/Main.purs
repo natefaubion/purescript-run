@@ -7,7 +7,6 @@ import Control.Monad.Eff.Console (CONSOLE, logShow, log)
 import Control.Monad.Rec.Loops (whileM_)
 import Data.Array as Array
 import Data.Foldable (for_)
-import Test.Streaming as TS
 import Run (Run, FProxy, SProxy(..), liftEffect, liftBase, interpret, run, runBase, BaseEff)
 import Run.Except (EXCEPT, runExcept, throw, catch)
 import Run.State (STATE, runState, get, gets, put, modify)
@@ -86,5 +85,3 @@ main = do
     # runState (10)
     # runBase
     # void
-
-  TS.main
