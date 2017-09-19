@@ -2,11 +2,14 @@ module Run
   ( Run
   , run
   , runBase
-  , interpret
+  , runBaseWithCont
+  , runWithBase
+  , runWithEffect
   , liftEffect
   , liftBase
   , peel
   , send
+  , expand
   , BaseEff
   , BaseAff
   , module Data.Functor.Variant
@@ -14,17 +17,18 @@ module Run
   ) where
 
 import Prelude
+
 import Control.Monad.Aff (Aff)
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (class MonadEff, liftEff)
-import Control.Monad.Free (Free, liftF, runFree, foldFree, hoistFree, resume)
+import Control.Monad.Free (Free, liftF, runFree, foldFree, resume')
 import Control.Monad.Rec.Class (class MonadRec, Step(..))
-import Data.Either (Either)
+import Data.Either (Either(..))
 import Data.Functor.Variant (VariantF, FProxy(..), inj, on, case_, default)
-import Data.Newtype (class Newtype, unwrap, over)
-import Data.Symbol (SProxy(..), class IsSymbol)
+import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (SProxy(..)) as Exports
+import Data.Symbol (SProxy(..), class IsSymbol)
 import Partial.Unsafe (unsafeCrashWith)
 import Type.Equality (class TypeEquals)
 import Unsafe.Coerce (unsafeCoerce)
@@ -92,10 +96,7 @@ peel
   ∷ ∀ a r
   . Run r a
   → Either (VariantF r (Run r a)) a
-peel (RunM r) = coerceR (resume r)
-  where
-  coerceR ∷ Either (VariantF r (Free (VariantF r) a)) a → Either (VariantF r (Run r a)) a
-  coerceR = unsafeCoerce
+peel = unwrap >>> resume' (\b f → Left (RunM <<< f <$> b)) Right
 
 -- | Enqueues an instruction in the `Run` Monad.
 send
@@ -104,42 +105,80 @@ send
   → Run r a
 send = RunM <<< liftF
 
+-- | Casts some set of effects to a wider set of effects via a left-biased
+-- | union.
+expand
+  ∷ ∀ r1 r2 rx a
+  . Union r1 rx r2
+  ⇒ Run r1 a
+  → Run r2 a
+expand = unsafeCoerce
+
 -- | Extracts the value from a fully interpreted program.
 run ∷ ∀ a. Run () a → a
 run = unwrap >>> runFree \_ → unsafeCrashWith "Control.Monad.Run: the impossible happened"
 
--- | Extracts the value from a program with only base effects.
+unBase ∷ ∀ f. VariantF (base ∷ FProxy f) ~> f
+unBase = case_ # on (SProxy ∷ SProxy "base") id
+
+-- | Extracts the value from a program with only base effects. This assumes
+-- | stack safety under Monadic recursion.
 runBase
+  ∷ ∀ f a
+  . Monad f
+  ⇒ Run (base ∷ FProxy f) a
+  → f a
+runBase = unwrap >>> loop
+  where
+  loop = resume' (\b f → f <$> unBase b >>= loop) pure
+
+-- | Extracts the value from a program with only base effects using `MonadRec`
+-- | to preserve stack safety.
+runBaseRec
   ∷ ∀ f a
   . MonadRec f
   ⇒ Run (base ∷ FProxy f) a
   → f a
-runBase = unwrap >>> foldFree go
+runBaseRec = unwrap >>> foldFree (case_ # on (SProxy ∷ SProxy "base") id)
+
+-- | Interprets the base effect into some Monad `m` via continuation passing.
+runBaseWithCont
+  ∷ ∀ f m a b
+  . Monad m
+  ⇒ (f (Unit → m b) → m b)
+  → (a → m b)
+  → Run (base ∷ FProxy f) a
+  → m b
+runBaseWithCont k1 k2 = unwrap >>> loop
   where
-  go ∷ VariantF (base ∷ FProxy f) ~> f
-  go = case_ # on (SProxy ∷ SProxy "base") id
+  loop = resume' (\b f → k1 (unBase $ (\b' _ → loop (f b')) <$> b)) k2
 
 -- | Interprets an effect functor into the base effect, eliminating the label.
-interpret
-  ∷ ∀ sym f m r1 r2 r3 a
-  . RowCons sym (FProxy f) r2 r1
-  ⇒ RowCons "base" (FProxy m) r2 r3
+runWithBase
+  ∷ ∀ sym f m r1 r2 a
+  . RowCons sym (FProxy f) (base ∷ FProxy m | r2) r1
   ⇒ IsSymbol sym
   ⇒ Functor m
   ⇒ SProxy sym
-  → (f ~> m)
+  → (f (Run r1 a) → m (Run r1 a))
   → Run r1 a
-  → Run r3 a
-interpret p k = over RunM (hoistFree go)
+  → Run (base ∷ FProxy m | r2) a
+runWithBase p k = runWithEffect p (liftBase <<< k)
+
+-- | Interprets an effect functor in terms of other `Run` effects, eliminating
+-- | the label.
+runWithEffect
+  ∷ ∀ sym f r1 r2 a
+  . RowCons sym (FProxy f) r2 r1
+  ⇒ IsSymbol sym
+  ⇒ SProxy sym
+  → (f (Run r1 a) → Run r2 (Run r1 a))
+  → Run r1 a
+  → Run r2 a
+runWithEffect p k = loop
   where
-  go ∷ VariantF r1 ~> VariantF r3
-  go = on p (coerceB <<< inj (SProxy ∷ SProxy "base") <<< k) coerceR
-
-  coerceB ∷ VariantF (base ∷ FProxy m | r2) ~> VariantF r3
-  coerceB = unsafeCoerce
-
-  coerceR ∷ VariantF r2 ~> VariantF r3
-  coerceR = unsafeCoerce
+  handle = on p k send
+  loop   = unwrap >>> resume' (\b f → handle (RunM <<< f <$> b) >>= loop) pure
 
 data R (r ∷ # Type)
 
