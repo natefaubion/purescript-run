@@ -3,6 +3,7 @@ module Run
   , run
   , runBase
   , interpret
+  , interpretPure
   , liftEffect
   , liftBase
   , peel
@@ -20,7 +21,7 @@ import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (class MonadEff, liftEff)
 import Control.Monad.Free (Free, liftF, runFree, foldFree, hoistFree, resume)
 import Control.Monad.Rec.Class (class MonadRec, Step(..))
-import Data.Either (Either)
+import Data.Either (Either(..))
 import Data.Functor.Variant (VariantF, FProxy(..), inj, on, case_, default)
 import Data.Newtype (class Newtype, unwrap, over)
 import Data.Symbol (SProxy(..), class IsSymbol)
@@ -140,6 +141,26 @@ interpret p k = over RunM (hoistFree go)
 
   coerceR ∷ VariantF r2 ~> VariantF r3
   coerceR = unsafeCoerce
+
+interpretPure
+  ∷ ∀ a f r1 r2 sym
+  . IsSymbol sym
+  ⇒ RowCons sym (FProxy f) r2 r1
+  ⇒ SProxy sym
+  → (f (Run r1 a) -> Run r1 a)
+  → Run r1 a
+  → Run r2 a
+interpretPure s f = go
+  where
+  go :: Run r1 a -> Run r2 a
+  go x'' = case peel x'' of
+    Left x' -> case handle x' of
+      Left x -> go (f x)
+      Right x -> send x >>= go
+    Right x' -> pure x'
+
+  handle :: VariantF r1 (Run r1 a) -> Either (f (Run r1 a)) (VariantF r2 (Run r1 a))
+  handle = on s Left Right
 
 data R (r ∷ # Type)
 
