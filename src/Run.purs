@@ -139,7 +139,7 @@ runBaseRec
   . MonadRec f
   ⇒ Run (base ∷ FProxy f) a
   → f a
-runBaseRec = unwrap >>> foldFree (case_ # on (SProxy ∷ SProxy "base") id)
+runBaseRec = unwrap >>> foldFree unBase
 
 -- | Interprets the base effect into some Monad `m` via continuation passing.
 runBaseWithCont
