@@ -7,7 +7,7 @@ import Control.Monad.Eff.Console (CONSOLE, logShow, log)
 import Control.Monad.Rec.Loops (whileM_)
 import Data.Array as Array
 import Data.Foldable (for_)
-import Run (Run, FProxy, SProxy(..), liftEffect, liftBase, interpret, run, runBase, BaseEff)
+import Run (Run, FProxy, SProxy(..), liftEffect, liftBase, runWithBase, run, runBase, BaseEff)
 import Run.Except (EXCEPT, runExcept, throw, catch)
 import Run.State (STATE, runState, get, gets, put, modify)
 
@@ -30,21 +30,21 @@ listen = liftEffect _talk $ Listen id
 
 ---
 
-program ∷ String → Run (except ∷ EXCEPT String, state ∷ STATE String) Int
+program ∷ ∀ r. String → Run (except ∷ EXCEPT String, state ∷ STATE String | r) Int
 program a = do
   put "Hello"
   if a == "12"
     then put "World" $> 12
     else throw "Not 12"
 
-program2 ∷ Run (state ∷ STATE Int, base ∷ BaseEff (console ∷ CONSOLE)) Int
+program2 ∷ ∀ r. Run (state ∷ STATE Int, base ∷ BaseEff (console ∷ CONSOLE) | r) Int
 program2 = do
   for_ (Array.range 0 100000) \n → do
     modify (_ + 1)
   liftEff $ log "Done"
   get
 
-program3 ∷ Run (talk ∷ TALK) Unit
+program3 ∷ ∀ r. Run (talk ∷ TALK | r) Unit
 program3 = do
   speak "Hello, there."
   speak "What is your name?"
@@ -75,13 +75,13 @@ main = do
   logShow res1
 
   program3
-    # interpret _talk case _ of
-        Speak str a  → log str *> pure a
-        Listen reply → pure (reply "Gerald")
+    # runWithBase _talk case _ of
+        Speak str a  → log str $> a
+        Listen reply → pure $ reply "Gerald"
     # runBase
 
   yesProgram
     # catch (liftBase <<< log)
-    # runState (10)
+    # runState 10
     # runBase
     # void
