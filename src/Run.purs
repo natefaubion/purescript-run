@@ -1,10 +1,13 @@
 module Run
-  ( Run
+  ( Run(..)
   , run
   , runBase
   , runBaseWithCont
   , runWithBase
   , runWithEffect
+  , interpretWithBase
+  , interpretWithEffect
+  , foldWithEffect
   , liftEffect
   , liftBase
   , peel
@@ -29,14 +32,14 @@ import Data.Functor.Variant (VariantF, FProxy(..), inj, on, case_, default)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (SProxy(..)) as Exports
 import Data.Symbol (SProxy(..), class IsSymbol)
+import Data.Tuple (Tuple, uncurry)
 import Partial.Unsafe (unsafeCrashWith)
 import Type.Equality (class TypeEquals)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | An extensible effect Monad, indexed by a set of effect functors. Effects
 -- | are eliminated by interpretation into a pure value or into some base
--- | effect Monad. The `Run` Monad is an alternative to Monad Transformers,
--- | and can represent both associative and non-associative effects.
+-- | effect Monad. The `Run` Monad is an alternative to Monad Transformers.
 -- |
 -- | An example using `State` and `Except`:
 -- | ```purescript
@@ -61,7 +64,7 @@ import Unsafe.Coerce (unsafeCoerce)
 -- |     # runBase
 -- |     # void
 -- | ````
-newtype Run (r ∷ # Type) a = RunM (Free (VariantF r) a)
+newtype Run (r ∷ # Type) a = Run (Free (VariantF r) a)
 
 derive instance newtypeRun ∷ Newtype (Run r a) _
 derive newtype instance functorRun :: Functor (Run r)
@@ -80,7 +83,7 @@ liftEffect
   ⇒ SProxy sym
   → f a
   → Run r2 a
-liftEffect p = RunM <<< liftF <<< inj p
+liftEffect p = Run <<< liftF <<< inj p
 
 -- | Lifts a base effect into the `Run` Monad (eg. `Eff`, `Aff`, or `IO`).
 liftBase
@@ -88,7 +91,7 @@ liftBase
   . Functor f
   ⇒ f a
   → Run (base ∷ FProxy f | r) a
-liftBase = RunM <<< liftF <<< inj (SProxy ∷ SProxy "base")
+liftBase = Run <<< liftF <<< inj (SProxy ∷ SProxy "base")
 
 -- | Reflects the next instruction or the final value if there are no more
 -- | instructions.
@@ -96,17 +99,27 @@ peel
   ∷ ∀ a r
   . Run r a
   → Either (VariantF r (Run r a)) a
-peel = unwrap >>> resume' (\b f → Left (RunM <<< f <$> b)) Right
+peel = resume Left Right
+
+resume
+  ∷ ∀ a b r
+  . (VariantF r (Run r a) → b)
+  → (a → b)
+  → Run r a
+  → b
+resume k1 k2 = resume' (\x f → k1 (Run <<< f <$> x)) k2 <<< unwrap
 
 -- | Enqueues an instruction in the `Run` Monad.
 send
   ∷ ∀ a r
   . VariantF r a
   → Run r a
-send = RunM <<< liftF
+send = Run <<< liftF
 
 -- | Casts some set of effects to a wider set of effects via a left-biased
--- | union.
+-- | union. For example, you could take a closed effect and unify it with
+-- | a superset of effects because we know the additional effects never
+-- | occur.
 expand
   ∷ ∀ r1 r2 rx a
   . Union r1 rx r2
@@ -128,9 +141,10 @@ runBase
   . Monad f
   ⇒ Run (base ∷ FProxy f) a
   → f a
-runBase = unwrap >>> loop
+runBase = loop
   where
-  loop = resume' (\b f → f <$> unBase b >>= loop) pure
+  loop ∷ Run (base ∷ FProxy f) a → f a
+  loop = resume (\b → loop =<< unBase b) pure
 
 -- | Extracts the value from a program with only base effects using `MonadRec`
 -- | to preserve stack safety.
@@ -139,21 +153,36 @@ runBaseRec
   . MonadRec f
   ⇒ Run (base ∷ FProxy f) a
   → f a
-runBaseRec = unwrap >>> foldFree unBase
+runBaseRec = foldFree unBase <<< unwrap
 
 -- | Interprets the base effect into some Monad `m` via continuation passing.
 runBaseWithCont
   ∷ ∀ f m a b
   . Monad m
-  ⇒ (f (Unit → m b) → m b)
+  ⇒ (f (m b) → m b)
   → (a → m b)
   → Run (base ∷ FProxy f) a
   → m b
-runBaseWithCont k1 k2 = unwrap >>> loop
+runBaseWithCont k1 k2 = loop
   where
-  loop = resume' (\b f → k1 (unBase $ (\b' _ → loop (f b')) <$> b)) k2
+  loop ∷ Run (base ∷ FProxy f) a → m b
+  loop = resume (\b -> k1 (unBase (loop <$> b))) k2
 
--- | Interprets an effect functor into the base effect, eliminating the label.
+-- | Interprets an effect functor into the base effect via a natural
+-- | transformation, eliminating the label.
+interpretWithBase
+  ∷ ∀ sym f m r1 r2 a
+  . RowCons sym (FProxy f) (base ∷ FProxy m | r2) r1
+  ⇒ IsSymbol sym
+  ⇒ Functor m
+  ⇒ SProxy sym
+  → (f ~> m)
+  → Run r1 a
+  → Run (base ∷ FProxy m | r2) a
+interpretWithBase = runWithBase
+
+-- | The same as `interpretWithBase`, but with a less restrictive type for the
+-- | interpreter.
 runWithBase
   ∷ ∀ sym f m r1 r2 a
   . RowCons sym (FProxy f) (base ∷ FProxy m | r2) r1
@@ -167,6 +196,18 @@ runWithBase p k = runWithEffect p (liftBase <<< k)
 
 -- | Interprets an effect functor in terms of other `Run` effects, eliminating
 -- | the label.
+interpretWithEffect
+  ∷ ∀ sym f r1 r2 a
+  . RowCons sym (FProxy f) r2 r1
+  ⇒ IsSymbol sym
+  ⇒ SProxy sym
+  → (f ~> Run r2)
+  → Run r1 a
+  → Run r2 a
+interpretWithEffect = runWithEffect
+
+-- | The same as `interpretWithEffect` but with a less restrictive type for the
+-- | interpreter.
 runWithEffect
   ∷ ∀ sym f r1 r2 a
   . RowCons sym (FProxy f) r2 r1
@@ -177,8 +218,33 @@ runWithEffect
   → Run r2 a
 runWithEffect p k = loop
   where
+  handle ∷ VariantF r1 (Run r1 a) → Run r2 (Run r1 a)
   handle = on p k send
-  loop   = unwrap >>> resume' (\b f → handle (RunM <<< f <$> b) >>= loop) pure
+
+  loop ∷ Run r1 a → Run r2 a
+  loop = resume (\b → handle b >>= loop) pure
+
+-- | Interprets an effect in terms of other `Run` effects with an internal
+-- | accumulator.
+foldWithEffect
+  ∷ ∀ sym f r1 r2 s a b
+  . RowCons sym (FProxy f) r2 r1
+  ⇒ IsSymbol sym
+  ⇒ SProxy sym
+  → (s → f (Run r1 a) → Run r2 (Tuple s (Run r1 a)))
+  → Run r2 s
+  → Run r1 a
+  → Run r2 a
+foldWithEffect p k init r = init >>= flip loop r
+  where
+  handle ∷ s → VariantF r1 (Run r1 a) → Run r2 a
+  handle acc =
+    on p
+      (k acc >=> uncurry loop)
+      (send >=> loop acc)
+
+  loop ∷ s → Run r1 a → Run r2 a
+  loop acc = resume (handle acc) pure
 
 data R (r ∷ # Type)
 
