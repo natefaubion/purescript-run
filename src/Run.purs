@@ -11,6 +11,7 @@ module Run
   , liftEffect
   , liftBase
   , peel
+  , resume
   , send
   , expand
   , BaseEff
@@ -101,6 +102,7 @@ peel
   → Either (VariantF r (Run r a)) a
 peel = resume Left Right
 
+-- | Eliminator for the `Run` data type.
 resume
   ∷ ∀ a b r
   . (VariantF r (Run r a) → b)
