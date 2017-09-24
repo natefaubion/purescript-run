@@ -29,7 +29,7 @@ _except ∷ SProxy "except"
 _except = SProxy
 
 liftExcept ∷ ∀ e a r. Except e a → Run (except ∷ EXCEPT e | r) a
-liftExcept = Run.liftEffect _except
+liftExcept = Run.lift _except
 
 throw ∷ ∀ e a r. e → Run (except ∷ EXCEPT e | r) a
 throw = liftExcept <<< Except

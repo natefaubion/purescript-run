@@ -1,21 +1,24 @@
 module Run
   ( Run(..)
   , run
-  , runBase
-  , runBaseWithCont
-  , runWithBase
+  , runEffect
+  , runEffectRec
+  , runEffectCont
   , runWithEffect
-  , interpretWithBase
   , interpretWithEffect
   , foldWithEffect
-  , liftEffect
-  , liftBase
+  , lift
   , peel
   , resume
   , send
   , expand
-  , BaseEff
-  , BaseAff
+  , EFF
+  , AFF
+  , liftEff
+  , liftAff
+  , runBaseEff
+  , runBaseAff
+  , runBaseAff'
   , module Data.Functor.Variant
   , module Exports
   ) where
@@ -23,19 +26,18 @@ module Run
 import Prelude
 
 import Control.Monad.Aff (Aff)
-import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Class (class MonadEff, liftEff)
-import Control.Monad.Free (Free, liftF, runFree, foldFree, resume')
+import Control.Monad.Eff.Class as Eff
+import Control.Monad.Free (Free, liftF, runFree, runFreeM, resume')
 import Control.Monad.Rec.Class (class MonadRec, Step(..))
 import Data.Either (Either(..))
-import Data.Functor.Variant (VariantF, FProxy(..), inj, on, case_, default)
+import Data.Functor.Variant (VariantF, FProxy(..), inj, on, case_, default, match)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (SProxy(..)) as Exports
 import Data.Symbol (SProxy(..), class IsSymbol)
 import Data.Tuple (Tuple, uncurry)
+import Data.Variant.Internal (class VariantFRecordMatching)
 import Partial.Unsafe (unsafeCrashWith)
-import Type.Equality (class TypeEquals)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | An extensible effect Monad, indexed by a set of effect functors. Effects
@@ -47,7 +49,7 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | type MyEffects =
 -- |   ( state ∷ STATE Int
 -- |   , except ∷ EXCEPT String
--- |   , base ∷ BaseEff (console ∷ CONSOLE)
+-- |   , eff ∷ EFF (console ∷ CONSOLE)
 -- |   )
 -- |
 -- | yesProgram ∷ Run MyEffects Unit
@@ -62,7 +64,7 @@ import Unsafe.Coerce (unsafeCoerce)
 -- |   yesProgram
 -- |     # catch (liftEff <<< log)
 -- |     # runState 10
--- |     # runBase
+-- |     # runBaseEff
 -- |     # void
 -- | ````
 newtype Run (r ∷ # Type) a = Run (Free (VariantF r) a)
@@ -74,9 +76,18 @@ derive newtype instance applicativeRun :: Applicative (Run r)
 derive newtype instance bindRun :: Bind (Run r)
 derive newtype instance monadRun :: Monad (Run r)
 
+instance monadRecRun ∷ MonadRec (Run r) where
+  tailRecM f = loop
+    where
+    loop a = do
+      b ← f a
+      case b of
+        Done r → pure r
+        Loop n → loop n
+
 -- | Lifts an effect functor into the `Run` Monad according to the provided
 -- | `SProxy` slot.
-liftEffect
+lift
   ∷ ∀ sym r1 r2 f a
   . RowCons sym (FProxy f) r1 r2
   ⇒ IsSymbol sym
@@ -84,15 +95,7 @@ liftEffect
   ⇒ SProxy sym
   → f a
   → Run r2 a
-liftEffect p = Run <<< liftF <<< inj p
-
--- | Lifts a base effect into the `Run` Monad (eg. `Eff`, `Aff`, or `IO`).
-liftBase
-  ∷ ∀ r f a
-  . Functor f
-  ⇒ f a
-  → Run (base ∷ FProxy f | r) a
-liftBase = Run <<< liftF <<< inj (SProxy ∷ SProxy "base")
+lift p = Run <<< liftF <<< inj p
 
 -- | Reflects the next instruction or the final value if there are no more
 -- | instructions.
@@ -133,68 +136,51 @@ expand = unsafeCoerce
 run ∷ ∀ a. Run () a → a
 run = unwrap >>> runFree \_ → unsafeCrashWith "Control.Monad.Run: the impossible happened"
 
-unBase ∷ ∀ f. VariantF (base ∷ FProxy f) ~> f
-unBase = case_ # on (SProxy ∷ SProxy "base") id
-
 -- | Extracts the value from a program with only base effects. This assumes
 -- | stack safety under Monadic recursion.
-runBase
-  ∷ ∀ f a
-  . Monad f
-  ⇒ Run (base ∷ FProxy f) a
-  → f a
-runBase = loop
+runEffect
+  ∷ ∀ f m a r1 r2
+  . VariantFRecordMatching r1 r2 (Run r1 a) (m (Run r1 a))
+  ⇒ Monad m
+  ⇒ Record r2
+  → Run r1 a
+  → m a
+runEffect rec = loop
   where
-  loop ∷ Run (base ∷ FProxy f) a → f a
-  loop = resume (\b → loop =<< unBase b) pure
+  handle ∷ VariantF r1 (Run r1 a) → m (Run r1 a)
+  handle = match rec
+
+  loop ∷ Run r1 a → m a
+  loop = resume (\a → handle a >>= loop) pure
 
 -- | Extracts the value from a program with only base effects using `MonadRec`
 -- | to preserve stack safety.
-runBaseRec
-  ∷ ∀ f a
-  . MonadRec f
-  ⇒ Run (base ∷ FProxy f) a
-  → f a
-runBaseRec = foldFree unBase <<< unwrap
+runEffectRec
+  ∷ ∀ m a r1 r2
+  . VariantFRecordMatching r1 r2 (Run r1 a) (m (Run r1 a))
+  ⇒ MonadRec m
+  ⇒ Record r2
+  → Run r1 a
+  → m a
+runEffectRec rec = runFreeM (coerceM (match rec)) <<< unwrap
+  where
+  -- | Only so we can avoid the overhead of mapping the Run constructor.
+  coerceM ∷ (VariantF r1 (Run r1 a) → m (Run r1 a)) → VariantF r1 (Free (VariantF r1) a) → m (Free (VariantF r1) a)
+  coerceM = unsafeCoerce
 
 -- | Interprets the base effect into some Monad `m` via continuation passing.
-runBaseWithCont
-  ∷ ∀ f m a b
-  . Monad m
-  ⇒ (f (m b) → m b)
+runEffectCont
+  ∷ ∀ m a b r1 r2
+  . VariantFRecordMatching r1 r2 (m b) (m b)
+  ⇒ Monad m
+  ⇒ Record r2
   → (a → m b)
-  → Run (base ∷ FProxy f) a
+  → Run r1 a
   → m b
-runBaseWithCont k1 k2 = loop
+runEffectCont rec k = loop
   where
-  loop ∷ Run (base ∷ FProxy f) a → m b
-  loop = resume (\b -> k1 (unBase (loop <$> b))) k2
-
--- | Interprets an effect functor into the base effect via a natural
--- | transformation, eliminating the label.
-interpretWithBase
-  ∷ ∀ sym f m r1 r2 a
-  . RowCons sym (FProxy f) (base ∷ FProxy m | r2) r1
-  ⇒ IsSymbol sym
-  ⇒ Functor m
-  ⇒ SProxy sym
-  → (f ~> m)
-  → Run r1 a
-  → Run (base ∷ FProxy m | r2) a
-interpretWithBase = runWithBase
-
--- | The same as `interpretWithBase`, but with a less restrictive type for the
--- | interpreter.
-runWithBase
-  ∷ ∀ sym f m r1 r2 a
-  . RowCons sym (FProxy f) (base ∷ FProxy m | r2) r1
-  ⇒ IsSymbol sym
-  ⇒ Functor m
-  ⇒ SProxy sym
-  → (f (Run r1 a) → m (Run r1 a))
-  → Run r1 a
-  → Run (base ∷ FProxy m | r2) a
-runWithBase p k = runWithEffect p (liftBase <<< k)
+  loop ∷ Run r1 a → m b
+  loop = resume (\b -> match rec (loop <$> b)) k
 
 -- | Interprets an effect functor in terms of other `Run` effects, eliminating
 -- | the label.
@@ -248,31 +234,28 @@ foldWithEffect p k init r = init >>= flip loop r
   loop ∷ s → Run r1 a → Run r2 a
   loop acc = resume (handle acc) pure
 
-data R (r ∷ # Type)
+-- | Type synonym for using `Eff` as an effect.
+type EFF eff = FProxy (Eff eff)
 
--- Type synonym for using `Eff` as a base effect.
-type BaseEff eff = FProxy (Eff eff)
+-- Lift an `Eff` effect into the `Run` Monad via the `eff` label.
+liftEff ∷ ∀ eff r. Eff eff ~> Run (eff ∷ EFF eff | r)
+liftEff = lift (SProxy ∷ SProxy "eff")
 
--- Type synonym for using `Aff` as a base effect.
-type BaseAff eff = FProxy (Aff eff)
+-- | Runs a base `Eff` effect.
+runBaseEff ∷ ∀ eff. Run (eff ∷ EFF eff) ~> Eff eff
+runBaseEff = runEffectRec { eff: \a → a }
 
-instance monadRecRun ∷ MonadRec (Run r) where
-  tailRecM f = loop
-    where
-    loop a = do
-      b ← f a
-      case b of
-        Done r → pure r
-        Loop n → loop n
+-- | Type synonym for using `Aff` as an effect.
+type AFF eff = FProxy (Aff eff)
 
-instance monadEffRun ∷ (TypeEquals (R rs) (R (base ∷ FProxy m | r)), MonadEff eff m) ⇒ MonadEff eff (Run rs) where
-  liftEff = coerceR <<< liftBase <<< liftEff
-    where
-    coerceR ∷ Run (base ∷ FProxy m | r) ~> Run rs
-    coerceR = unsafeCoerce
+-- | Lift an `Aff` effect into the `Run` Monad via the `aff` label.
+liftAff ∷ ∀ eff r. Aff eff ~> Run (aff ∷ AFF eff | r)
+liftAff = lift (SProxy ∷ SProxy "aff")
 
-instance monadAffRun ∷ (TypeEquals (R rs) (R (base ∷ FProxy m | r)), MonadAff eff m) ⇒ MonadAff eff (Run rs) where
-  liftAff = coerceR <<< liftBase <<< liftAff
-    where
-    coerceR ∷ Run (base ∷ FProxy m | r) ~> Run rs
-    coerceR = unsafeCoerce
+-- | Runs a base `Aff` effect.
+runBaseAff ∷ ∀ eff. Run (aff ∷ AFF eff) ~> Aff eff
+runBaseAff = runEffect { aff: \a → a }
+
+-- | Runs base `Aff` and `Eff` together as one effect.
+runBaseAff' ∷ ∀ eff. Run (aff ∷ AFF eff, eff ∷ EFF eff) ~> Aff eff
+runBaseAff' = runEffect { aff: \a → a, eff: \a → Eff.liftEff a }
