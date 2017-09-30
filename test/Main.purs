@@ -75,9 +75,10 @@ main = do
   logShow res1
 
   let
-    runSpeak = send # on _talk case _ of
-      Speak str a  → liftEff (log str) $> a
-      Listen reply → pure $ reply "Gerald"
+    runSpeak = send
+      # on _talk case _ of
+          Speak str a  → liftEff (log str) $> a
+          Listen reply → pure $ reply "Gerald"
 
   program3
     # runWithEffect runSpeak
