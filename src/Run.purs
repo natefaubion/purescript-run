@@ -26,7 +26,9 @@ module Run
 import Prelude
 
 import Control.Monad.Aff (Aff)
+import Control.Monad.Aff.Class (class MonadAff)
 import Control.Monad.Eff (Eff)
+import Control.Monad.Eff.Class (class MonadEff)
 import Control.Monad.Eff.Class as Eff
 import Control.Monad.Free (Free, liftF, runFree, runFreeM, resume')
 import Control.Monad.Rec.Class (class MonadRec, Step(..))
@@ -37,6 +39,8 @@ import Data.Symbol (SProxy(..)) as Exports
 import Data.Symbol (SProxy(..), class IsSymbol)
 import Data.Tuple (Tuple, uncurry)
 import Partial.Unsafe (unsafeCrashWith)
+import Type.Equality (class TypeEquals)
+import Type.Row (RProxy)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | An extensible effect Monad, indexed by a set of effect functors. Effects
@@ -75,6 +79,9 @@ derive newtype instance applicativeRun :: Applicative (Run r)
 derive newtype instance bindRun :: Bind (Run r)
 derive newtype instance monadRun :: Monad (Run r)
 
+-- | This instance is provided for compatibility, but is otherwise
+-- | unnecessary. You can use monadic recursion with `Run`, deferring the
+-- | `MonadRec` constraint till it is interpretted.
 instance monadRecRun ∷ MonadRec (Run r) where
   tailRecM f = loop
     where
@@ -133,7 +140,7 @@ expand = unsafeCoerce
 
 -- | Extracts the value from a fully interpreted program.
 run ∷ ∀ a. Run () a → a
-run = unwrap >>> runFree \_ → unsafeCrashWith "Control.Monad.Run: the impossible happened"
+run = unwrap >>> runFree \_ → unsafeCrashWith "Run: the impossible happened"
 
 -- | Extracts the value from a program with only base effects. This assumes
 -- | stack safety under Monadic recursion.
@@ -204,7 +211,7 @@ foldWithEffect
   → (Run r2 s)
   → Run r1 a
   → Run r2 a
-foldWithEffect step init r = init >>= loop r
+foldWithEffect step init r = loop r =<< init
   where
   loop ∷ Run r1 a → s → Run r2 a
   loop = resume (\b → uncurry loop <=< step b) (const <<< pure)
@@ -234,3 +241,17 @@ runBaseAff = runEffect $ match { aff: \a → a }
 -- | Runs base `Aff` and `Eff` together as one effect.
 runBaseAff' ∷ ∀ eff. Run (aff ∷ AFF eff, eff ∷ EFF eff) ~> Aff eff
 runBaseAff' = runEffect $ match { aff: \a → a, eff: \a → Eff.liftEff a }
+
+instance runMonadEff ∷ (TypeEquals (RProxy r1) (RProxy (eff ∷ EFF eff | r2))) ⇒ MonadEff eff (Run r1) where
+  liftEff = coerceEff <<< liftEff
+    where
+    coerceEff ∷ Run (eff ∷ EFF eff | r2) ~> Run r1
+    coerceEff = unsafeCoerce
+
+-- | This will insert an `EFF` effect because `MonadAff` entails `MonadEff`.
+-- | If you don't want this, use `Run.liftAff` rather than `Control.Monad.Aff.Class.liftAff`.
+instance runMonadAff ∷ (TypeEquals (RProxy r1) (RProxy (aff ∷ AFF eff, eff ∷ EFF eff | r2))) ⇒ MonadAff eff (Run r1) where
+  liftAff = coerceAff <<< liftAff
+    where
+    coerceAff ∷ Run (aff ∷ AFF eff, eff ∷ EFF eff | r2) ~> Run r1
+    coerceAff = unsafeCoerce
