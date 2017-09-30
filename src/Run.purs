@@ -31,12 +31,11 @@ import Control.Monad.Eff.Class as Eff
 import Control.Monad.Free (Free, liftF, runFree, runFreeM, resume')
 import Control.Monad.Rec.Class (class MonadRec, Step(..))
 import Data.Either (Either(..))
-import Data.Functor.Variant (VariantF, FProxy(..), inj, on, case_, default, match)
+import Data.Functor.Variant (FProxy(..), VariantF, case_, default, inj, match, on, onMatch)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (SProxy(..)) as Exports
 import Data.Symbol (SProxy(..), class IsSymbol)
 import Data.Tuple (Tuple, uncurry)
-import Data.Variant.Internal (class VariantFRecordMatching)
 import Partial.Unsafe (unsafeCrashWith)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -139,57 +138,48 @@ run = unwrap >>> runFree \_ → unsafeCrashWith "Control.Monad.Run: the impossib
 -- | Extracts the value from a program with only base effects. This assumes
 -- | stack safety under Monadic recursion.
 runEffect
-  ∷ ∀ f m a r1 r2
-  . VariantFRecordMatching r1 r2 (Run r1 a) (m (Run r1 a))
-  ⇒ Monad m
-  ⇒ Record r2
-  → Run r1 a
+  ∷ ∀ m a r
+  . Monad m
+  ⇒ (VariantF r (Run r a) → m (Run r a))
+  → Run r a
   → m a
-runEffect rec = loop
+runEffect k = loop
   where
-  handle ∷ VariantF r1 (Run r1 a) → m (Run r1 a)
-  handle = match rec
-
-  loop ∷ Run r1 a → m a
-  loop = resume (\a → handle a >>= loop) pure
+  loop ∷ Run r a → m a
+  loop = resume (\a → loop =<< k a) pure
 
 -- | Extracts the value from a program with only base effects using `MonadRec`
 -- | to preserve stack safety.
 runEffectRec
-  ∷ ∀ m a r1 r2
-  . VariantFRecordMatching r1 r2 (Run r1 a) (m (Run r1 a))
-  ⇒ MonadRec m
-  ⇒ Record r2
-  → Run r1 a
+  ∷ ∀ m a r
+  . MonadRec m
+  ⇒ (VariantF r (Run r a) → m (Run r a))
+  → Run r a
   → m a
-runEffectRec rec = runFreeM (coerceM (match rec)) <<< unwrap
+runEffectRec k = runFreeM (coerceM k) <<< unwrap
   where
-  -- | Only so we can avoid the overhead of mapping the Run constructor.
-  coerceM ∷ (VariantF r1 (Run r1 a) → m (Run r1 a)) → VariantF r1 (Free (VariantF r1) a) → m (Free (VariantF r1) a)
+  -- Just so we can avoid the overhead of mapping the Run constructor
+  coerceM ∷ (VariantF r (Run r a) -> m (Run r a)) -> VariantF r (Free (VariantF r) a) -> m (Free (VariantF r) a)
   coerceM = unsafeCoerce
 
 -- | Interprets the base effect into some Monad `m` via continuation passing.
 runEffectCont
-  ∷ ∀ m a b r1 r2
-  . VariantFRecordMatching r1 r2 (m b) (m b)
-  ⇒ Monad m
-  ⇒ Record r2
+  ∷ ∀ m a b r
+  . Monad m
+  ⇒ (VariantF r (m b) → m b)
   → (a → m b)
-  → Run r1 a
+  → Run r a
   → m b
-runEffectCont rec k = loop
+runEffectCont k1 k2 = loop
   where
-  loop ∷ Run r1 a → m b
-  loop = resume (\b -> match rec (loop <$> b)) k
+  loop ∷ Run r a → m b
+  loop = resume (\b -> k1 (loop <$> b)) k2
 
 -- | Interprets an effect functor in terms of other `Run` effects, eliminating
 -- | the label.
 interpretWithEffect
-  ∷ ∀ sym f r1 r2 a
-  . RowCons sym (FProxy f) r2 r1
-  ⇒ IsSymbol sym
-  ⇒ SProxy sym
-  → (f ~> Run r2)
+  ∷ ∀ r1 r2 a
+  . (VariantF r1 ~> Run r2)
   → Run r1 a
   → Run r2 a
 interpretWithEffect = runWithEffect
@@ -197,42 +187,27 @@ interpretWithEffect = runWithEffect
 -- | The same as `interpretWithEffect` but with a less restrictive type for the
 -- | interpreter.
 runWithEffect
-  ∷ ∀ sym f r1 r2 a
-  . RowCons sym (FProxy f) r2 r1
-  ⇒ IsSymbol sym
-  ⇒ SProxy sym
-  → (f (Run r1 a) → Run r2 (Run r1 a))
+  ∷ ∀ r1 r2 a
+  . (VariantF r1 (Run r1 a) → Run r2 (Run r1 a))
   → Run r1 a
   → Run r2 a
-runWithEffect p k = loop
+runWithEffect k = loop
   where
-  handle ∷ VariantF r1 (Run r1 a) → Run r2 (Run r1 a)
-  handle = on p k send
-
   loop ∷ Run r1 a → Run r2 a
-  loop = resume (\b → handle b >>= loop) pure
+  loop = resume (\b → loop =<< k b) pure
 
 -- | Interprets an effect in terms of other `Run` effects with an internal
 -- | accumulator.
 foldWithEffect
-  ∷ ∀ sym f r1 r2 s a b
-  . RowCons sym (FProxy f) r2 r1
-  ⇒ IsSymbol sym
-  ⇒ SProxy sym
-  → (s → f (Run r1 a) → Run r2 (Tuple s (Run r1 a)))
-  → Run r2 s
+  ∷ ∀ r1 r2 s a
+  . (VariantF r1 (Run r1 a) → s → Run r2 (Tuple (Run r1 a) s))
+  → (Run r2 s)
   → Run r1 a
   → Run r2 a
-foldWithEffect p k init r = init >>= flip loop r
+foldWithEffect step init r = init >>= loop r
   where
-  handle ∷ s → VariantF r1 (Run r1 a) → Run r2 a
-  handle acc =
-    on p
-      (k acc >=> uncurry loop)
-      (send >=> loop acc)
-
-  loop ∷ s → Run r1 a → Run r2 a
-  loop acc = resume (handle acc) pure
+  loop ∷ Run r1 a → s → Run r2 a
+  loop = resume (\b → uncurry loop <=< step b) (const <<< pure)
 
 -- | Type synonym for using `Eff` as an effect.
 type EFF eff = FProxy (Eff eff)
@@ -243,7 +218,7 @@ liftEff = lift (SProxy ∷ SProxy "eff")
 
 -- | Runs a base `Eff` effect.
 runBaseEff ∷ ∀ eff. Run (eff ∷ EFF eff) ~> Eff eff
-runBaseEff = runEffectRec { eff: \a → a }
+runBaseEff = runEffectRec $ match { eff: \a → a }
 
 -- | Type synonym for using `Aff` as an effect.
 type AFF eff = FProxy (Aff eff)
@@ -254,8 +229,8 @@ liftAff = lift (SProxy ∷ SProxy "aff")
 
 -- | Runs a base `Aff` effect.
 runBaseAff ∷ ∀ eff. Run (aff ∷ AFF eff) ~> Aff eff
-runBaseAff = runEffect { aff: \a → a }
+runBaseAff = runEffect $ match { aff: \a → a }
 
 -- | Runs base `Aff` and `Eff` together as one effect.
 runBaseAff' ∷ ∀ eff. Run (aff ∷ AFF eff, eff ∷ EFF eff) ~> Aff eff
-runBaseAff' = runEffect { aff: \a → a, eff: \a → Eff.liftEff a }
+runBaseAff' = runEffect $ match { aff: \a → a, eff: \a → Eff.liftEff a }

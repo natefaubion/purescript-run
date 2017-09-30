@@ -1,12 +1,13 @@
 module Test.Main where
 
 import Prelude
+
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, logShow, log)
 import Control.Monad.Rec.Loops (whileM_)
 import Data.Array as Array
 import Data.Foldable (for_)
-import Run (Run, FProxy, SProxy(..), lift, liftEff, runWithEffect, run, runBaseEff, EFF)
+import Run (EFF, FProxy, Run, SProxy(..), lift, liftEff, on, run, runBaseEff, runWithEffect, send)
 import Run.Except (EXCEPT, runExcept, throw, catch)
 import Run.State (STATE, runState, get, gets, put, modify)
 
@@ -73,10 +74,13 @@ main = do
   res1 ← program2 # runState 0 # runBaseEff
   logShow res1
 
+  let
+    runSpeak = send # on _talk case _ of
+      Speak str a  → liftEff (log str) $> a
+      Listen reply → pure $ reply "Gerald"
+
   program3
-    # runWithEffect _talk case _ of
-        Speak str a  → liftEff (log str) $> a
-        Listen reply → pure $ reply "Gerald"
+    # runWithEffect runSpeak
     # runBaseEff
 
   yesProgram
