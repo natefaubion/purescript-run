@@ -40,6 +40,9 @@
     "purescript-profunctor": "^3.0.0"
   },
   "devDependencies": {
-    "purescript-monad-loops": "^0.4.0"
+    "purescript-monad-loops": "^0.4.0",
+    "purescript-control": "^3.3.1",
+    "purescript-minibench": "^1.0.0",
+    "purescript-identity": "^3.1.0"
   }
 }
