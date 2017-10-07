@@ -247,14 +247,14 @@ runAccumRec k = curry (tailRecM (uncurry loop))
 runAccumCont
   ∷ ∀ m r s a b
   . (s → VariantF r (s → m b) → m b)
-  → (a → s → m b)
+  → (s → a → m b)
   → s
   → Run r a
   → m b
-runAccumCont k1 k2 = flip loop
+runAccumCont k1 k2 = loop
   where
-  loop ∷ Run r a → s → m b
-  loop = resume (\b s → k1 s (loop <$> b)) k2
+  loop ∷ s → Run r a → m b
+  loop s = resume (\b → k1 s (flip loop <$> b)) (k2 s)
 
 -- | Type synonym for using `Eff` as an effect.
 type EFF eff = FProxy (Eff eff)
