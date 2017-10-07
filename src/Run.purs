@@ -72,7 +72,7 @@ import Unsafe.Coerce (unsafeCoerce)
 -- |     # runBaseEff
 -- |     # void
 -- | ````
-newtype Run (r ∷ # Type) a = Run (Free (VariantF r) a)
+newtype Run r a = Run (Free (VariantF r) a)
 
 derive instance newtypeRun ∷ Newtype (Run r a) _
 derive newtype instance functorRun :: Functor (Run r)
