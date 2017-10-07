@@ -7,7 +7,7 @@ import Control.Monad.Eff.Console (CONSOLE, logShow, log)
 import Control.Monad.Rec.Loops (whileM_)
 import Data.Array as Array
 import Data.Foldable (for_)
-import Run (EFF, FProxy, Run, SProxy(..), lift, liftEff, on, run, runBaseEff, runWithEffect, send)
+import Run (EFF, FProxy, Run, SProxy(..), lift, liftEff, on, extract, runBaseEff, run, send)
 import Run.Except (EXCEPT, runExcept, throw, catch)
 import Run.State (STATE, runState, get, gets, put, modify)
 
@@ -39,7 +39,7 @@ program a = do
 
 program2 ∷ ∀ r. Run (state ∷ STATE Int, eff ∷ EFF (console ∷ CONSOLE) | r) Int
 program2 = do
-  for_ (Array.range 0 100000) \n → do
+  for_ (Array.range 1 100000) \n → do
     modify (_ + 1)
   liftEff $ log "Done"
   get
@@ -67,21 +67,20 @@ yesProgram = do
 
 main ∷ Eff (console ∷ CONSOLE) Unit
 main = do
-  program "42" # runState "" # runExcept # run # logShow
-  program "42" # runExcept # runState "" # run # logShow
-  program "12" # runState "" # runExcept # run # logShow
+  program "42" # runState "" # runExcept # extract # logShow
+  program "42" # runExcept # runState "" # extract # logShow
+  program "12" # runState "" # runExcept # extract # logShow
 
   res1 ← program2 # runState 0 # runBaseEff
   logShow res1
 
   let
-    runSpeak = send
-      # on _talk case _ of
-          Speak str a  → liftEff (log str) $> a
-          Listen reply → pure $ reply "Gerald"
+    runSpeak = send # on _talk case _ of
+      Speak str a  → liftEff (log str) $> a
+      Listen reply → pure $ reply "Gerald"
 
   program3
-    # runWithEffect runSpeak
+    # run runSpeak
     # runBaseEff
 
   yesProgram

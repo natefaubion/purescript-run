@@ -14,7 +14,7 @@ import Control.Monad.Writer.Class as WC
 import Data.Identity (Identity(..))
 import Data.Newtype (un)
 import Performance.Minibench (benchWith)
-import Run (Run, run)
+import Run (Run, extract)
 import Run.Except (EXCEPT)
 import Run.Except as RE
 import Run.State (STATE)
@@ -145,6 +145,6 @@ main = do
       # RE.runExcept
       # RW.runWriter
       # RS.runState 1000
-      # run
+      # extract
 
 foreign import gc :: forall eff. Eff eff Unit

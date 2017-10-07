@@ -1,16 +1,18 @@
 module Run
   ( Run(..)
-  , run
-  , runEffect
-  , runEffectRec
-  , runEffectCont
-  , runWithEffect
-  , interpretWithEffect
-  , foldWithEffect
   , lift
+  , send
+  , extract
+  , interpret
+  , run
+  , interpretRec
+  , runRec
+  , runCont
+  , runAccum
+  , runAccumRec
+  , runAccumCont
   , peel
   , resume
-  , send
   , expand
   , EFF
   , AFF
@@ -31,13 +33,13 @@ import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (class MonadEff)
 import Control.Monad.Eff.Class as Eff
 import Control.Monad.Free (Free, liftF, runFree, runFreeM, resume')
-import Control.Monad.Rec.Class (class MonadRec, Step(..))
+import Control.Monad.Rec.Class (class MonadRec, Step(..), tailRecM)
 import Data.Either (Either(..))
 import Data.Functor.Variant (FProxy(..), VariantF, case_, default, inj, match, on, onMatch)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (SProxy(..)) as Exports
 import Data.Symbol (SProxy(..), class IsSymbol)
-import Data.Tuple (Tuple, uncurry)
+import Data.Tuple (Tuple, curry, uncurry)
 import Partial.Unsafe (unsafeCrashWith)
 import Type.Equality (class TypeEquals)
 import Type.Row (RProxy)
@@ -45,7 +47,7 @@ import Unsafe.Coerce (unsafeCoerce)
 
 -- | An extensible effect Monad, indexed by a set of effect functors. Effects
 -- | are eliminated by interpretation into a pure value or into some base
--- | effect Monad. The `Run` Monad is an alternative to Monad Transformers.
+-- | effect Monad.
 -- |
 -- | An example using `State` and `Except`:
 -- | ```purescript
@@ -131,6 +133,17 @@ send = Run <<< liftF
 -- | union. For example, you could take a closed effect and unify it with
 -- | a superset of effects because we know the additional effects never
 -- | occur.
+-- |
+-- | ```purescript
+-- | type LessRows = (foo :: FOO)
+-- | type MoreRows = (foo :: FOO, bar :: BAR, baz :: BAZ)
+-- |
+-- | foo :: Run LessRows Unit
+-- | foo = foo
+-- |
+-- | foo' :: Run MoreRows Unit
+-- | foo' = expand foo
+-- | ```
 expand
   ∷ ∀ r1 r2 rx a
   . Union r1 rx r2
@@ -138,83 +151,110 @@ expand
   → Run r2 a
 expand = unsafeCoerce
 
--- | Extracts the value from a fully interpreted program.
-run ∷ ∀ a. Run () a → a
-run = unwrap >>> runFree \_ → unsafeCrashWith "Run: the impossible happened"
+-- | Extracts the value from a purely interpreted program.
+extract ∷ ∀ a. Run () a → a
+extract = unwrap >>> runFree \_ → unsafeCrashWith "Run: the impossible happened"
 
--- | Extracts the value from a program with only base effects. This assumes
+-- | Extracts the value from a program via some Monad `m`. This assumes
 -- | stack safety under Monadic recursion.
-runEffect
+interpret
+  ∷ ∀ m a r
+  . Monad m
+  ⇒ (VariantF r ~> m)
+  → Run r a
+  → m a
+interpret = run
+
+-- | Identical to `interpret` but with a less restrictive type signature,
+-- | letting you intercept the rest of the program.
+run
   ∷ ∀ m a r
   . Monad m
   ⇒ (VariantF r (Run r a) → m (Run r a))
   → Run r a
   → m a
-runEffect k = loop
+run k = loop
   where
   loop ∷ Run r a → m a
   loop = resume (\a → loop =<< k a) pure
 
--- | Extracts the value from a program with only base effects using `MonadRec`
--- | to preserve stack safety.
-runEffectRec
+-- | Extracts the value from a program via some MonadRec `m`, preserving
+-- | stack safety.
+interpretRec
+  ∷ ∀ m a r
+  . MonadRec m
+  ⇒ (VariantF r ~> m)
+  → Run r a
+  → m a
+interpretRec = runRec
+
+-- | Identical to `interpretRec` but with a less restrictive type
+-- | signature, letting you intercept the rest of the program.
+runRec
   ∷ ∀ m a r
   . MonadRec m
   ⇒ (VariantF r (Run r a) → m (Run r a))
   → Run r a
   → m a
-runEffectRec k = runFreeM (coerceM k) <<< unwrap
+runRec k = runFreeM (coerceM k) <<< unwrap
   where
   -- Just so we can avoid the overhead of mapping the Run constructor
   coerceM ∷ (VariantF r (Run r a) -> m (Run r a)) -> VariantF r (Free (VariantF r) a) -> m (Free (VariantF r) a)
   coerceM = unsafeCoerce
 
--- | Interprets the base effect into some Monad `m` via continuation passing.
-runEffectCont
+-- | Extracts the value from a program via some `m` using continuation passing.
+runCont
   ∷ ∀ m a b r
-  . Monad m
-  ⇒ (VariantF r (m b) → m b)
+  . (VariantF r (m b) → m b)
   → (a → m b)
   → Run r a
   → m b
-runEffectCont k1 k2 = loop
+runCont k1 k2 = loop
   where
   loop ∷ Run r a → m b
   loop = resume (\b -> k1 (loop <$> b)) k2
 
--- | Interprets an effect functor in terms of other `Run` effects, eliminating
--- | the label.
-interpretWithEffect
-  ∷ ∀ r1 r2 a
-  . (VariantF r1 ~> Run r2)
-  → Run r1 a
-  → Run r2 a
-interpretWithEffect = runWithEffect
-
--- | The same as `interpretWithEffect` but with a less restrictive type for the
--- | interpreter.
-runWithEffect
-  ∷ ∀ r1 r2 a
-  . (VariantF r1 (Run r1 a) → Run r2 (Run r1 a))
-  → Run r1 a
-  → Run r2 a
-runWithEffect k = loop
+-- | Extracts the value from a program via some Monad `m` with an internal
+-- | accumulator. This assumes stack safety under Monadic recursion.
+runAccum
+  ∷ ∀ m r s a
+  . Monad m
+  ⇒ (s → VariantF r (Run r a) → m (Tuple s (Run r a)))
+  → s
+  → Run r a
+  → m a
+runAccum k = loop
   where
-  loop ∷ Run r1 a → Run r2 a
-  loop = resume (\b → loop =<< k b) pure
+  loop ∷ s → Run r a → m a
+  loop s = resume (\b → uncurry loop =<< k s b) pure
 
--- | Interprets an effect in terms of other `Run` effects with an internal
+-- | Extracts the value from a program via some MonadRec `m` with an internal
 -- | accumulator.
-foldWithEffect
-  ∷ ∀ r1 r2 s a
-  . (VariantF r1 (Run r1 a) → s → Run r2 (Tuple (Run r1 a) s))
-  → (Run r2 s)
-  → Run r1 a
-  → Run r2 a
-foldWithEffect step init r = loop r =<< init
+runAccumRec
+  ∷ ∀ m r s a
+  . MonadRec m
+  ⇒ (s → VariantF r (Run r a) → m (Tuple s (Run r a)))
+  → s
+  → Run r a
+  → m a
+runAccumRec k = curry (tailRecM (uncurry loop))
   where
-  loop ∷ Run r1 a → s → Run r2 a
-  loop = resume (\b → uncurry loop <=< step b) (const <<< pure)
+  loop ∷ s → Run r a → m (Step (Tuple s (Run r a)) a)
+  loop s = resume (\b → Loop <$> k s b) (pure <<< Done)
+
+-- | Extracts the value from a program via some `m` using continuation passing
+-- | with an internal accumulator.
+runAccumCont
+  ∷ ∀ m r s a b
+  . (s → VariantF r (s → m b) → m b)
+  → (a → s → m b)
+  → s
+  → Run r a
+  → m b
+runAccumCont k1 k2 = flip loop
+  where
+  loop ∷ Run r a → s → m b
+  loop = resume (\b s → k1 s (loop <$> b)) k2
 
 -- | Type synonym for using `Eff` as an effect.
 type EFF eff = FProxy (Eff eff)
@@ -225,7 +265,7 @@ liftEff = lift (SProxy ∷ SProxy "eff")
 
 -- | Runs a base `Eff` effect.
 runBaseEff ∷ ∀ eff. Run (eff ∷ EFF eff) ~> Eff eff
-runBaseEff = runEffectRec $ match { eff: \a → a }
+runBaseEff = runRec $ match { eff: \a → a }
 
 -- | Type synonym for using `Aff` as an effect.
 type AFF eff = FProxy (Aff eff)
@@ -236,11 +276,11 @@ liftAff = lift (SProxy ∷ SProxy "aff")
 
 -- | Runs a base `Aff` effect.
 runBaseAff ∷ ∀ eff. Run (aff ∷ AFF eff) ~> Aff eff
-runBaseAff = runEffect $ match { aff: \a → a }
+runBaseAff = run $ match { aff: \a → a }
 
 -- | Runs base `Aff` and `Eff` together as one effect.
 runBaseAff' ∷ ∀ eff. Run (aff ∷ AFF eff, eff ∷ EFF eff) ~> Aff eff
-runBaseAff' = runEffect $ match { aff: \a → a, eff: \a → Eff.liftEff a }
+runBaseAff' = run $ match { aff: \a → a, eff: \a → Eff.liftEff a }
 
 instance runMonadEff ∷ (TypeEquals (RProxy r1) (RProxy (eff ∷ EFF eff | r2))) ⇒ MonadEff eff (Run r1) where
   liftEff = coerceEff <<< liftEff
