@@ -379,8 +379,8 @@ program4 = runBaseEff program3
 ```
 
 Additionally there are also combinators for writing interpreters via
-continuation passing. This is useful if you want to just use `Eff` callbacks
-as your base instead of something like `Aff`.
+continuation passing (`runCont`, `runAccumCont`). This is useful if you want
+to just use `Eff` callbacks as your base instead of something like `Aff`.
 
 ```purescript
 data LogF a = Log String a
