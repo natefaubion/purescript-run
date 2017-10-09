@@ -4,13 +4,15 @@ module Run
   , send
   , extract
   , interpret
-  , run
   , interpretRec
+  , run
   , runRec
   , runCont
+  , runPure
   , runAccum
   , runAccumRec
   , runAccumCont
+  , runAccumPure
   , peel
   , resume
   , expand
@@ -34,12 +36,13 @@ import Control.Monad.Eff.Class (class MonadEff)
 import Control.Monad.Eff.Class as Eff
 import Control.Monad.Free (Free, liftF, runFree, runFreeM, resume')
 import Control.Monad.Rec.Class (class MonadRec, Step(..), tailRecM)
+import Control.Monad.Rec.Class (Step(..)) as Exports
 import Data.Either (Either(..))
 import Data.Functor.Variant (FProxy(..), VariantF, case_, default, inj, match, on, onMatch)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (SProxy(..)) as Exports
 import Data.Symbol (SProxy(..), class IsSymbol)
-import Data.Tuple (Tuple, curry, uncurry)
+import Data.Tuple (Tuple(..), curry, uncurry)
 import Partial.Unsafe (unsafeCrashWith)
 import Type.Equality (class TypeEquals)
 import Type.Row (RProxy)
@@ -255,6 +258,42 @@ runAccumCont k1 k2 = loop
   where
   loop ∷ s → Run r a → m b
   loop s = resume (\b → k1 s (flip loop <$> b)) (k2 s)
+
+-- | Eliminates effects purely. Uses `Step` from `Control.Monad.Rec.Class` to
+-- | preserve stack safety under tail recursion.
+runPure
+  ∷ ∀ r1 r2 a
+  . (VariantF r1 (Run r1 a) → Step (Run r1 a) (VariantF r2 (Run r1 a)))
+  → Run r1 a
+  → Run r2 a
+runPure k = loop
+  where
+  loop ∷ Run r1 a → Run r2 a
+  loop r = case peel r of
+    Left a → case k a of
+      Loop r' → loop r'
+      Done a' → send a' >>= runPure k
+    Right a →
+      pure a
+
+-- | Eliminates effects purely with an internal accumulator. Uses `Step` from
+-- | `Control.Monad.Rec.Class` to preserve stack safety under tail recursion.
+runAccumPure
+  ∷ ∀ r1 r2 a b s
+  . (s → VariantF r1 (Run r1 a) → Step (Tuple s (Run r1 a)) (VariantF r2 (Run r1 a)))
+  → (s → a → b)
+  → s
+  → Run r1 a
+  → Run r2 b
+runAccumPure k1 k2 = loop
+  where
+  loop ∷ s → Run r1 a → Run r2 b
+  loop s r = case peel r of
+    Left a → case k1 s a of
+      Loop (Tuple s' r') → loop s' r'
+      Done a' → send a' >>= runAccumPure k1 k2 s
+    Right a →
+      pure (k2 s a)
 
 -- | Type synonym for using `Eff` as an effect.
 type EFF eff = FProxy (Eff eff)
