@@ -10,6 +10,7 @@ import Data.Foldable (for_)
 import Run (EFF, FProxy, Run, SProxy(..), lift, liftEff, on, extract, runBaseEff, run, send)
 import Run.Except (EXCEPT, runExcept, throw, catch)
 import Run.State (STATE, runState, get, gets, put, modify)
+import Test.Examples as Examples
 
 data Talk a
   = Speak String a
@@ -37,7 +38,7 @@ program a = do
     then put "World" $> 12
     else throw "Not 12"
 
-program2 ∷ ∀ r. Run (state ∷ STATE Int, eff ∷ EFF (console ∷ CONSOLE) | r) Int
+program2 ∷ ∀ eff r. Run (state ∷ STATE Int, eff ∷ EFF (console ∷ CONSOLE | eff) | r) Int
 program2 = do
   for_ (Array.range 1 100000) \n → do
     modify (_ + 1)
@@ -51,13 +52,13 @@ program3 = do
   name ← listen
   speak $ "Nice to meet you, " <> name <> "!"
 
-type MyEffects =
+type MyEffects eff =
   ( state ∷ STATE Int
   , except ∷ EXCEPT String
-  , eff ∷ EFF (console ∷ CONSOLE)
+  , eff ∷ EFF (console ∷ CONSOLE | eff)
   )
 
-yesProgram ∷ Run MyEffects Unit
+yesProgram ∷ ∀ eff. Run (MyEffects eff) Unit
 yesProgram = do
   whenM (gets (_ < 0)) do
     throw "Number is less than 0"
@@ -65,7 +66,7 @@ yesProgram = do
     liftEff $ log "Yes"
     modify (_ - 1)
 
-main ∷ Eff (console ∷ CONSOLE) Unit
+main ∷ Eff (console ∷ CONSOLE, timer :: Examples.TIMER) Unit
 main = do
   program "42" # runState "" # runExcept # extract # logShow
   program "42" # runExcept # runState "" # extract # logShow
@@ -88,3 +89,6 @@ main = do
     # runState 10
     # runBaseEff
     # void
+
+  Examples.main >>= logShow
+  Examples.mainSleep

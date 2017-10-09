@@ -182,7 +182,7 @@ listen = liftF (inj _talk (Listen id))
 
 type DINNER = FProxy DinnerF
 
-_dinner :: SProxy :: SProxy "dinner"
+_dinner = SProxy :: SProxy "dinner"
 
 eat :: forall r. Food -> Free (VariantF (dinner :: DINNER | r)) IsThereMore
 eat food = liftF (inj _dinner (Eat food id))
@@ -316,14 +316,17 @@ handleTalk = case _ of
   Listen reply -> do
     pure (reply "I am Groot")
 
-runTalk :: forall r eff. Run (talk :: TALK | r) ~> Run (eff :: EFF (console :: CONSOLE | eff) | r)
+runTalk
+  :: forall r eff
+   . Run (eff :: EFF (console :: CONSOLE | eff), talk :: TALK | r)
+  ~> Run (eff :: EFF (console :: CONSOLE | eff) | r)
 runTalk = interpret (on _talk handleTalk send)
 
-program2 :: forall eff r. Run (eff :: Eff (console :: CONSOLE | eff), dinner :: DINNER | r) Unit
-program2 = program # runTalk
+program2 :: forall eff r. Run (eff :: EFF (console :: CONSOLE | eff), dinner :: DINNER | r) Unit
+program2 = dinnerTime # runTalk
 ```
 
-We've interpreted `the TALK` effect in terms of native `Eff` effects, and so
+We've interpreted the `TALK` effect in terms of native `Eff` effects, and so
 it's no longer part of our set of `Run` effects. Instead, it has been
 replaced by `EFF`. `DINNER` has yet to be interpreted, and we can choose to
 do that at a later time.
@@ -341,7 +344,7 @@ handleDinner tally = case _ of
   Eat _ reply
     -- If we have food, bill the customer
     | tally.stock > 0 ->
-        let tally' = { stock: tally.stock - 1 , bill: tally.bill + 1 }
+        let tally' = { stock: tally.stock - 1, bill: tally.bill + 1 }
         in Tuple tally' (reply true)
     | otherwise ->
         Tuple tally (reply false)
@@ -374,3 +377,70 @@ there are a few combinators for extracting them.
 program4 :: forall eff. Eff (console :: CONSOLE | eff) (Tuple Bill Unit)
 program4 = runBaseEff program3
 ```
+
+Additionally there are also combinators for writing interpreters via
+continuation passing. This is useful if you want to just use `Eff` callbacks
+as your base instead of something like `Aff`.
+
+```purescript
+data LogF a = Log String a
+
+derive instance functorLogF :: Functor LogF
+
+type LOG = FProxy LogF
+
+_log = SProxy :: SProxy "log"
+
+log :: forall r. String -> Run (log :: LOG | r) Unit
+log str = Run.lift _log (Log str unit)
+
+---
+
+data SleepF a = Sleep Int a
+
+derive instance functorSleepF :: Functor SleepF
+
+type SLEEP = FProxy SleepF
+
+_sleep = SProxy :: SProxy "sleep"
+
+sleep :: forall r. Int -> Run (sleep :: SLEEP | r) Unit
+sleep ms = Run.lift _sleep (Sleep ms unit)
+
+---
+
+program :: forall r. Run (sleep :: SLEEP, log :: LOG | r) Unit
+program = do
+  log "I guess I'll wait..."
+  sleep 3000
+  log "I can't wait any longer!"
+
+program2 :: forall eff. Eff (console :: CONSOLE, timer :: TIMER | eff) Unit
+program2 = program # runCont go done
+  where
+  go = match
+    { log: \(Log str cb) -> Console.log str *> cb
+    , sleep: \(Sleep ms cb) -> void $ setTimeout ms cb
+    }
+
+  done _ = do
+    Console.log "Done!"
+```
+
+In this case, the functor component of our effects now has the `Eff`
+continuation (or callback) embedded in it, and we just invoke it to run the
+rest of the program.
+
+### Stack-safety
+
+Since the most common target for PureScript is JavaScript, stack-safety can
+be a concern. Generally, evaluating synchronous Monadic programs is not stack
+safe unless your particular `Monad` of choice is designed around it. You
+should use `interpretRec`, `runRec`, and `runAccumRec` if you want to
+_guarantee_ stack safety in all cases, but this does come with some overhead.
+
+Since `Run` itself is stack-safe, it's OK to use `interpret`, `run`, and
+`runAccum` when interpreting an effect in terms of other `Run` effects. `Aff`
+is also designed to be stack safe. `Eff`, however, is not stack safe, and you
+should use the `*Rec` variations. It's not possible to guarantee stack-safety
+when using the `*Cont` interpreters.
