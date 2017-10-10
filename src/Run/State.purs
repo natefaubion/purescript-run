@@ -28,7 +28,7 @@ _state ∷ SProxy "state"
 _state = SProxy
 
 liftState ∷ ∀ s a r. State s a → Run (state ∷ STATE s | r) a
-liftState = Run.liftEffect _state
+liftState = Run.lift _state
 
 modify ∷ ∀ s r. (s → s) → Run (state ∷ STATE s | r) Unit
 modify f = liftState $ State f (const unit)

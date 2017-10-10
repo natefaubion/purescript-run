@@ -26,7 +26,7 @@ _writer ∷ SProxy "writer"
 _writer = SProxy
 
 liftWriter ∷ ∀ w a r. Writer w a → Run (writer ∷ WRITER w | r) a
-liftWriter = Run.liftEffect _writer
+liftWriter = Run.lift _writer
 
 tell ∷ ∀ w r. w → Run (writer ∷ WRITER w | r) Unit
 tell w = liftWriter (Writer w unit)

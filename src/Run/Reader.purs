@@ -23,7 +23,7 @@ _reader ∷ SProxy "reader"
 _reader = SProxy
 
 liftReader ∷ ∀ e a r. Reader e a → Run (reader ∷ READER e | r) a
-liftReader = Run.liftEffect _reader
+liftReader = Run.lift _reader
 
 ask ∷ ∀ e r. Run (reader ∷ READER e | r) e
 ask = liftReader (Reader id)
