@@ -6,8 +6,9 @@ import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, logShow, log)
 import Control.Monad.Rec.Loops (whileM_)
 import Data.Array as Array
-import Data.Foldable (for_)
+import Data.Foldable (for_, oneOfMap)
 import Run (EFF, FProxy, Run, SProxy(..), lift, liftEff, on, extract, runBaseEff, run, send)
+import Run.Choose (CHOOSE, runChoose)
 import Run.Except (EXCEPT, runExcept, throw, catch)
 import Run.State (STATE, runState, get, gets, put, modify)
 import Test.Examples as Examples
@@ -66,6 +67,12 @@ yesProgram = do
     liftEff $ log "Yes"
     modify (_ - 1)
 
+chooseProgram ∷ ∀ eff r. Run (choose ∷ CHOOSE, eff ∷ EFF (console ∷ CONSOLE | eff) | r) Int
+chooseProgram = do
+  n ← oneOfMap pure [1, 2, 3, 4, 5]
+  liftEff $ log $ show n
+  pure (n + 1)
+
 main ∷ Eff (console ∷ CONSOLE, timer :: Examples.TIMER) Unit
 main = do
   program "42" # runState "" # runExcept # extract # logShow
@@ -89,6 +96,11 @@ main = do
     # runState 10
     # runBaseEff
     # void
+
+  as ← chooseProgram
+    # runChoose
+    # runBaseEff
+  logShow (as ∷ Array Int)
 
   Examples.main >>= logShow
   Examples.mainSleep
