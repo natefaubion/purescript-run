@@ -7,9 +7,11 @@ import Control.Monad.Eff.Console (CONSOLE, logShow, log)
 import Control.Monad.Rec.Loops (whileM_)
 import Data.Array as Array
 import Data.Foldable (for_, oneOfMap)
-import Run (EFF, FProxy, Run, SProxy(..), lift, liftEff, on, extract, runBaseEff, run, send)
+import Data.Maybe (Maybe(..))
+import Run (EFF, FProxy, Run, SProxy(..), extract, lift, liftEff, on, run, runBaseEff, send)
 import Run.Choose (CHOOSE, runChoose)
 import Run.Except (EXCEPT, runExcept, throw, catch)
+import Run.Maybe (MAYBE, liftMaybe, runMaybe)
 import Run.State (STATE, runState, get, gets, put, modify)
 import Test.Examples as Examples
 
@@ -73,6 +75,18 @@ chooseProgram = do
   liftEff $ log $ show n
   pure (n + 1)
 
+maybeProgram :: forall eff r. Run(maybe :: MAYBE, eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
+maybeProgram = do
+  i1 <- liftMaybe (Just 10)
+  i2 <- liftMaybe (Just 20)
+  liftEff $ (log $ "A MAYBE and EFF program results in 30, I hope: " <> (show (i1 + i2)))
+
+nothingProgram :: forall eff r. Run(maybe :: MAYBE, eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
+nothingProgram = do
+  i1 <- liftMaybe (Just 10)
+  i2 <- liftMaybe Nothing
+  liftEff $ (log $ "This shoud never be seen!!!" <> (show (i1 + i2)))
+
 main ∷ Eff (console ∷ CONSOLE, timer :: Examples.TIMER) Unit
 main = do
   program "42" # runState "" # runExcept # extract # logShow
@@ -81,6 +95,11 @@ main = do
 
   res1 ← program2 # runState 0 # runBaseEff
   logShow res1
+
+  _ <- maybeProgram # runMaybe # runBaseEff 
+  shouldBeNothing <- nothingProgram # runMaybe # runBaseEff 
+  log $ "This should be Nothing: " <> (show shouldBeNothing)
+
 
   let
     runSpeak = send # on _talk case _ of
