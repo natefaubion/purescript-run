@@ -19,16 +19,16 @@ type EITHER e = FProxy (Either e)
 _either :: SProxy "either"
 _either = SProxy
 
-liftEither :: forall e a r. Either e a -> Run(either :: EITHER e | r) a
+liftEither :: ∀ e a r. Either e a -> Run(either :: EITHER e | r) a
 liftEither = lift _either
 
-right :: forall e a r. a -> Run(either :: EITHER e | r) a
+right :: ∀ e a r. a -> Run(either :: EITHER e | r) a
 right = (lift _either) <<< Right
 
-left :: forall e a r. e -> Run(either :: EITHER e | r) a
+left :: ∀ e a r. e -> Run(either :: EITHER e | r) a
 left = (lift _either) <<< Left
 
-runEither :: forall e a r. Run (either :: EITHER e | r) a -> Run r (Either e a)
+runEither :: ∀ e a r. Run (either :: EITHER e | r) a -> Run r (Either e a)
 runEither = loop
   where
   handle = on _either Left Right

@@ -77,19 +77,19 @@ chooseProgram = do
   liftEff $ log $ show n
   pure (n + 1)
 
-maybeEitherProgram :: forall eff r. Run(maybe :: MAYBE, either :: (EITHER String), eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
+maybeEitherProgram :: ∀ eff r. Run(maybe :: MAYBE, either :: (EITHER String), eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
 maybeEitherProgram = do
   i1 <- liftMaybe (Just 10)
   i2 <- liftEither (Right 20)
   liftEff $ (log $ "A MAYBE, EITHER and EFF program will log 30 (I hope): " <> (show (i1 + i2)))
 
-rightNothingProgram :: forall eff r. Run(maybe :: MAYBE, either :: (EITHER String), eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
+rightNothingProgram :: ∀ eff r. Run(maybe :: MAYBE, either :: (EITHER String), eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
 rightNothingProgram = do
   i1 <- right 20
   i2 <- nothing
   liftEff $ (log $ "This shoud never be seen!!!" <> (show (i1 + i2)))
 
-justLeftProgram :: forall eff r. Run(maybe :: MAYBE, either :: (EITHER String), eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
+justLeftProgram :: ∀ eff r. Run(maybe :: MAYBE, either :: (EITHER String), eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
 justLeftProgram = do
   i2 <- just 10
   i1 <- left "OMG ERROR!"
