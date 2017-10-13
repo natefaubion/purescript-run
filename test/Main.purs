@@ -6,10 +6,14 @@ import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, logShow, log)
 import Control.Monad.Rec.Loops (whileM_)
 import Data.Array as Array
+import Data.Either (Either(..))
 import Data.Foldable (for_, oneOfMap)
-import Run (EFF, FProxy, Run, SProxy(..), lift, liftEff, on, extract, runBaseEff, run, send)
+import Data.Maybe (Maybe(..))
+import Run (EFF, FProxy, Run, SProxy(..), extract, lift, liftEff, on, run, runBaseEff, send)
 import Run.Choose (CHOOSE, runChoose)
+import Run.Either (EITHER, left, liftEither, right, runEither)
 import Run.Except (EXCEPT, runExcept, throw, catch)
+import Run.Maybe (MAYBE, just, liftMaybe, nothing, runMaybe)
 import Run.State (STATE, runState, get, gets, put, modify)
 import Test.Examples as Examples
 
@@ -73,6 +77,25 @@ chooseProgram = do
   liftEff $ log $ show n
   pure (n + 1)
 
+maybeEitherProgram :: ∀ eff r. Run(maybe :: MAYBE, either :: (EITHER String), eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
+maybeEitherProgram = do
+  i1 <- liftMaybe (Just 10)
+  i2 <- liftEither (Right 20)
+  liftEff $ (log $ "A MAYBE, EITHER and EFF program will log 30 (I hope): " <> (show (i1 + i2)))
+
+rightNothingProgram :: ∀ eff r. Run(maybe :: MAYBE, either :: (EITHER String), eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
+rightNothingProgram = do
+  i1 <- right 20
+  i2 <- nothing
+  liftEff $ (log $ "This shoud never be seen!!!" <> (show (i1 + i2)))
+
+justLeftProgram :: ∀ eff r. Run(maybe :: MAYBE, either :: (EITHER String), eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
+justLeftProgram = do
+  i2 <- just 10
+  i1 <- left "OMG ERROR!"
+  liftEff $ (log $ "This shoud never be seen!!!" <> (show (i1 + i2)))
+
+
 main ∷ Eff (console ∷ CONSOLE, timer :: Examples.TIMER) Unit
 main = do
   program "42" # runState "" # runExcept # extract # logShow
@@ -81,6 +104,15 @@ main = do
 
   res1 ← program2 # runState 0 # runBaseEff
   logShow res1
+
+  _ <- maybeEitherProgram # runMaybe # runEither # runBaseEff 
+  shouldBeRightNothing  <- rightNothingProgram # runMaybe # runEither # runBaseEff 
+  shouldBeNothing       <- rightNothingProgram # runEither # runMaybe # runBaseEff 
+  justLeft              <- justLeftProgram # runEither # runMaybe # runBaseEff
+
+  log $ "This should be Right(Nothing): " <> (show shouldBeRightNothing)
+  log $ "This should be Nothing: " <> (show shouldBeNothing)
+  log $ "This should be (Just (Left \"OMG ERROR!\")): " <> show justLeft 
 
   let
     runSpeak = send # on _talk case _ of
