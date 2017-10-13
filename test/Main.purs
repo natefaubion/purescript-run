@@ -6,12 +6,14 @@ import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, logShow, log)
 import Control.Monad.Rec.Loops (whileM_)
 import Data.Array as Array
+import Data.Either (Either(..))
 import Data.Foldable (for_, oneOfMap)
 import Data.Maybe (Maybe(..))
 import Run (EFF, FProxy, Run, SProxy(..), extract, lift, liftEff, on, run, runBaseEff, send)
 import Run.Choose (CHOOSE, runChoose)
+import Run.Either (EITHER, left, liftEither, right, runEither)
 import Run.Except (EXCEPT, runExcept, throw, catch)
-import Run.Maybe (MAYBE, liftMaybe, runMaybe)
+import Run.Maybe (MAYBE, just, liftMaybe, nothing, runMaybe)
 import Run.State (STATE, runState, get, gets, put, modify)
 import Test.Examples as Examples
 
@@ -75,17 +77,24 @@ chooseProgram = do
   liftEff $ log $ show n
   pure (n + 1)
 
-maybeProgram :: forall eff r. Run(maybe :: MAYBE, eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
-maybeProgram = do
+maybeEitherProgram :: forall eff r. Run(maybe :: MAYBE, either :: (EITHER String), eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
+maybeEitherProgram = do
   i1 <- liftMaybe (Just 10)
-  i2 <- liftMaybe (Just 20)
-  liftEff $ (log $ "A MAYBE and EFF program results in 30, I hope: " <> (show (i1 + i2)))
+  i2 <- liftEither (Right 20)
+  liftEff $ (log $ "A MAYBE, EITHER and EFF program will log 30 (I hope): " <> (show (i1 + i2)))
 
-nothingProgram :: forall eff r. Run(maybe :: MAYBE, eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
-nothingProgram = do
-  i1 <- liftMaybe (Just 10)
-  i2 <- liftMaybe Nothing
+rightNothingProgram :: forall eff r. Run(maybe :: MAYBE, either :: (EITHER String), eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
+rightNothingProgram = do
+  i1 <- right 20
+  i2 <- nothing
   liftEff $ (log $ "This shoud never be seen!!!" <> (show (i1 + i2)))
+
+justLeftProgram :: forall eff r. Run(maybe :: MAYBE, either :: (EITHER String), eff ∷ EFF (console ∷ CONSOLE | eff) | r) Unit 
+justLeftProgram = do
+  i2 <- just 10
+  i1 <- left "OMG ERROR!"
+  liftEff $ (log $ "This shoud never be seen!!!" <> (show (i1 + i2)))
+
 
 main ∷ Eff (console ∷ CONSOLE, timer :: Examples.TIMER) Unit
 main = do
@@ -96,10 +105,14 @@ main = do
   res1 ← program2 # runState 0 # runBaseEff
   logShow res1
 
-  _ <- maybeProgram # runMaybe # runBaseEff 
-  shouldBeNothing <- nothingProgram # runMaybe # runBaseEff 
-  log $ "This should be Nothing: " <> (show shouldBeNothing)
+  _ <- maybeEitherProgram # runMaybe # runEither # runBaseEff 
+  shouldBeRightNothing  <- rightNothingProgram # runMaybe # runEither # runBaseEff 
+  shouldBeNothing       <- rightNothingProgram # runEither # runMaybe # runBaseEff 
+  justLeft              <- justLeftProgram # runEither # runMaybe # runBaseEff
 
+  log $ "This should be Right(Nothing): " <> (show shouldBeRightNothing)
+  log $ "This should be Nothing: " <> (show shouldBeNothing)
+  log $ "This should be (Just (Left \"OMG ERROR!\")): " <> show justLeft 
 
   let
     runSpeak = send # on _talk case _ of
