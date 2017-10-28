@@ -29,12 +29,12 @@ runChoose = loop
   handle = Run.on _choose Left Right
   loop r = case Run.peel r of
     Left a → case handle a of
-      Left a → case a of
+      Left a' → case a' of
         Empty → pure empty
         Alt k → do
-          l ← loop (k true)
-          r ← loop (k false)
-          pure (alt l r)
+          x ← loop (k true)
+          y ← loop (k false)
+          pure (alt x y)
       Right a' →
         Run.send a' >>= loop
     Right a →
