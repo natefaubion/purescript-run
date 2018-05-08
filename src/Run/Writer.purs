@@ -10,8 +10,8 @@ module Run.Writer
   ) where
 
 import Prelude
+
 import Data.Either (Either(..))
-import Data.Monoid (class Monoid, mempty)
 import Data.Tuple (Tuple(..))
 import Run (Run, SProxy(..), FProxy)
 import Run as Run

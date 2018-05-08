@@ -16,11 +16,11 @@ module Run
   , peel
   , resume
   , expand
-  , EFF
+  , EFFECT
   , AFF
-  , liftEff
+  , liftEffect
   , liftAff
-  , runBaseEff
+  , runBaseEffect
   , runBaseAff
   , runBaseAff'
   , module Data.Functor.Variant
@@ -31,11 +31,11 @@ import Prelude
 
 import Control.Alt (class Alt)
 import Control.Alternative (class Alternative)
-import Control.Monad.Aff (Aff)
-import Control.Monad.Aff.Class (class MonadAff)
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Class (class MonadEff)
-import Control.Monad.Eff.Class as Eff
+import Effect (Effect)
+import Effect.Class (class MonadEffect)
+import Effect.Class as Eff
+import Effect.Aff (Aff)
+import Effect.Aff.Class (class MonadAff)
 import Control.Monad.Free (Free, liftF, runFree, runFreeM, resume')
 import Control.Monad.Rec.Class (Step(..)) as Exports
 import Control.Monad.Rec.Class (class MonadRec, Step(..), tailRecM)
@@ -49,6 +49,7 @@ import Data.Tuple (Tuple(..), curry, uncurry)
 import Partial.Unsafe (unsafeCrashWith)
 import Run.Internal (_choose, CHOOSE, Choose(..), toRows, fromRows)
 import Type.Equality (class TypeEquals)
+import Prim.Row as Row
 import Type.Row (RProxy)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -104,7 +105,7 @@ instance monadRecRun ∷ MonadRec (Run r) where
 -- | `SProxy` slot.
 lift
   ∷ ∀ sym r1 r2 f a
-  . RowCons sym (FProxy f) r1 r2
+  . Row.Cons sym (FProxy f) r1 r2
   ⇒ IsSymbol sym
   ⇒ Functor f
   ⇒ SProxy sym
@@ -153,7 +154,7 @@ send = Run <<< liftF
 -- | ```
 expand
   ∷ ∀ r1 r2 rx a
-  . Union r1 rx r2
+  . Row.Union r1 rx r2
   ⇒ Run r1 a
   → Run r2 a
 expand = unsafeCoerce
@@ -300,44 +301,44 @@ runAccumPure k1 k2 = loop
       pure (k2 s a)
 
 -- | Type synonym for using `Eff` as an effect.
-type EFF eff = FProxy (Eff eff)
+type EFFECT = FProxy Effect
 
 -- Lift an `Eff` effect into the `Run` Monad via the `eff` label.
-liftEff ∷ ∀ eff r. Eff eff ~> Run (eff ∷ EFF eff | r)
-liftEff = lift (SProxy ∷ SProxy "eff")
+liftEffect ∷ ∀ r. Effect ~> Run (effect ∷ EFFECT | r)
+liftEffect = lift (SProxy ∷ SProxy "effect")
 
 -- | Runs a base `Eff` effect.
-runBaseEff ∷ ∀ eff. Run (eff ∷ EFF eff) ~> Eff eff
-runBaseEff = runRec $ match { eff: \a → a }
+runBaseEffect ∷ Run (effect ∷ EFFECT) ~> Effect
+runBaseEffect = runRec $ match { effect: \a → a }
 
 -- | Type synonym for using `Aff` as an effect.
-type AFF eff = FProxy (Aff eff)
+type AFF = FProxy Aff
 
 -- | Lift an `Aff` effect into the `Run` Monad via the `aff` label.
-liftAff ∷ ∀ eff r. Aff eff ~> Run (aff ∷ AFF eff | r)
+liftAff ∷ ∀ r. Aff ~> Run (aff ∷ AFF | r)
 liftAff = lift (SProxy ∷ SProxy "aff")
 
 -- | Runs a base `Aff` effect.
-runBaseAff ∷ ∀ eff. Run (aff ∷ AFF eff) ~> Aff eff
+runBaseAff ∷ Run (aff ∷ AFF) ~> Aff
 runBaseAff = run $ match { aff: \a → a }
 
 -- | Runs base `Aff` and `Eff` together as one effect.
-runBaseAff' ∷ ∀ eff. Run (aff ∷ AFF eff, eff ∷ EFF eff) ~> Aff eff
-runBaseAff' = run $ match { aff: \a → a, eff: \a → Eff.liftEff a }
+runBaseAff' ∷ Run (aff ∷ AFF, effect ∷ EFFECT) ~> Aff
+runBaseAff' = run $ match { aff: \a → a, effect: \a → Eff.liftEffect a }
 
-instance runMonadEff ∷ (TypeEquals (RProxy r1) (RProxy (eff ∷ EFF eff | r2))) ⇒ MonadEff eff (Run r1) where
-  liftEff = fromRows <<< liftEff
+instance runMonadEff ∷ (TypeEquals (RProxy r1) (RProxy (effect ∷ EFFECT | r2))) ⇒ MonadEffect (Run r1) where
+  liftEffect = fromRows <<< liftEffect
 
 -- | This will insert an `EFF` effect because `MonadAff` entails `MonadEff`.
 -- | If you don't want this, use `Run.liftAff` rather than `Control.Monad.Aff.Class.liftAff`.
-instance runMonadAff ∷ (TypeEquals (RProxy r1) (RProxy (aff ∷ AFF eff, eff ∷ EFF eff | r2))) ⇒ MonadAff eff (Run r1) where
+instance runMonadAff ∷ (TypeEquals (RProxy r1) (RProxy (aff ∷ AFF, effect ∷ EFFECT | r2))) ⇒ MonadAff (Run r1) where
   liftAff = fromRows <<< liftAff
 
 liftChoose ∷ ∀ r a. Choose a → Run (choose ∷ CHOOSE | r) a
 liftChoose = lift _choose
 
 instance runAlt ∷ (TypeEquals (RProxy r1) (RProxy (choose ∷ CHOOSE | r2))) ⇒ Alt (Run r1) where
-  alt a b = fromRows $ liftChoose (Alt id) >>= if _ then toRows a else toRows b
+  alt a b = fromRows $ liftChoose (Alt identity) >>= if _ then toRows a else toRows b
 
 instance runPlus ∷ (TypeEquals (RProxy r1) (RProxy (choose ∷ CHOOSE | r2))) ⇒ Plus (Run r1) where
   empty = fromRows $ liftChoose Empty

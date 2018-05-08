@@ -26,7 +26,7 @@ liftReader ∷ ∀ e a r. Reader e a → Run (reader ∷ READER e | r) a
 liftReader = Run.lift _reader
 
 ask ∷ ∀ e r. Run (reader ∷ READER e | r) e
-ask = liftReader (Reader id)
+ask = liftReader (Reader identity)
 
 local ∷ ∀ e a r. (e → e) → Run (reader ∷ READER e | r) a → Run (reader ∷ READER e | r) a
 local = \f r → map f ask >>= flip runLocal r
