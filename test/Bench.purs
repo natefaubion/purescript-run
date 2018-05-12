@@ -2,8 +2,8 @@ module Test.Bench where
 
 import Prelude
 
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Console (CONSOLE, log)
+import Effect (Effect)
+import Effect.Console (log)
 import Control.Monad.Error.Class as EC
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.State (StateT, runStateT)
@@ -101,7 +101,7 @@ test_run = do
     x ← RS.get
     RE.throw (show x)
 
-main ∷ Eff (console ∷ CONSOLE) Unit
+main ∷ Effect Unit
 main = do
   log "Transformers (monomorphic/trampoline)"
   benchWith 100 \_ →
@@ -147,4 +147,4 @@ main = do
       # RS.runState 1000
       # extract
 
-foreign import gc :: forall eff. Eff eff Unit
+foreign import gc :: Effect Unit

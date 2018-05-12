@@ -37,7 +37,7 @@ put ∷ ∀ s r. s → Run (state ∷ STATE s | r) Unit
 put = modify <<< const
 
 get ∷ ∀ s r. Run (state ∷ STATE s | r) s
-get = liftState $ State id id
+get = liftState $ State identity identity
 
 gets ∷ ∀ s t r. (s → t) → Run (state ∷ STATE s | r) t
 gets = flip map get
