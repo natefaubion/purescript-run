@@ -34,7 +34,7 @@
     "purescript-tuples": "#compiler/0.12",
     "purescript-type-equality": "#compiler/0.12",
     "purescript-unsafe-coerce": "#compiler/0.12",
-    "purescript-variant": "justinwoo/purescript-variant#compiler/0.12",
+    "purescript-variant": "#compiler/0.12",
     "purescript-profunctor": "#compiler/0.12"
   },
   "devDependencies": {
