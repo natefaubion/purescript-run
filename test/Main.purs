@@ -9,7 +9,7 @@ import Data.Array as Array
 import Data.Foldable (for_, oneOfMap)
 import Run (EFF, FProxy, Run, SProxy(..), lift, liftEff, on, extract, runBaseEff, run, send)
 import Run.Choose (CHOOSE, runChoose)
-import Run.Except (EXCEPT, runExcept, throw, catch)
+import Run.Except (EXCEPT, catch, runExcept, runExceptAt, throw, throwAt)
 import Run.State (STATE, runState, get, gets, put, modify)
 import Test.Examples as Examples
 
@@ -53,6 +53,16 @@ program3 = do
   name ← listen
   speak $ "Nice to meet you, " <> name <> "!"
 
+program4 ∷ ∀ r. String → Run (exc ∷ EXCEPT String, state ∷ STATE String | r) Int
+program4 a = do
+  put "Hello"
+  if a == "12"
+    then put "World" $> 12
+    else throwAt _exc "Not 12"
+
+_exc ∷ SProxy "exc"
+_exc = SProxy
+
 type MyEffects eff =
   ( state ∷ STATE Int
   , except ∷ EXCEPT String
@@ -90,6 +100,10 @@ main = do
   program3
     # run runSpeak
     # runBaseEff
+
+  program4 "42" # runState "" # runExceptAt _exc # extract # logShow
+  program4 "42" # runExceptAt _exc # runState "" # extract # logShow
+  program4 "12" # runState "" # runExceptAt _exc # extract # logShow
 
   yesProgram
     # catch (liftEff <<< log)
