@@ -74,9 +74,9 @@ censorAt sym = loop
     Left a → case handle a of
       Left (Writer w n) → do
         tellAt sym (f w)
-        censorAt sym f n
+        loop f n
       Right _ →
-        Run.send a >>= censorAt sym f
+        Run.send a >>= loop f
     Right a →
       pure a
 

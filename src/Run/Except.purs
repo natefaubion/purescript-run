@@ -133,7 +133,7 @@ catchAt sym = loop
       Left (Except e) →
         k e
       Right a' →
-        Run.send a' >>= catchAt sym k
+        Run.send a' >>= loop k
     Right a →
       pure a
 
@@ -155,7 +155,7 @@ runExceptAt sym = loop
       Left (Except e) →
         pure (Left e)
       Right a' →
-        Run.send a' >>= runExceptAt sym
+        Run.send a' >>= loop
     Right a →
       pure (Right a)
 
