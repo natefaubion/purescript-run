@@ -7,10 +7,13 @@ import Control.Monad.Eff.Console (CONSOLE, logShow, log)
 import Control.Monad.Rec.Loops (whileM_)
 import Data.Array as Array
 import Data.Foldable (for_, oneOfMap)
+import Data.Monoid.Additive (Additive(..))
 import Run (EFF, FProxy, Run, SProxy(..), lift, liftEff, on, extract, runBaseEff, run, send)
 import Run.Choose (CHOOSE, runChoose)
 import Run.Except (EXCEPT, catch, runExcept, runExceptAt, throw, throwAt)
+import Run.Reader (READER, ask, runReader)
 import Run.State (STATE, get, gets, modify, put, putAt, runState, runStateAt)
+import Run.Writer (WRITER, runWriter, tell)
 import Test.Examples as Examples
 
 data Talk a
@@ -86,6 +89,24 @@ chooseProgram = do
   liftEff $ log $ show n
   pure (n + 1)
 
+tcoLoop ∷ ∀ r. Int -> (Int -> Run r Unit) -> Run r Unit
+tcoLoop n k = go n
+  where
+  go n'
+    | n' == 0 = pure unit
+    | otherwise = do
+        k n'
+        go (n' - 1)
+
+stateTCO ∷ ∀ r. Run (state ∷ STATE Int | r) Unit
+stateTCO = tcoLoop 100000 put
+
+writerTCO ∷ ∀ r. Run (writer ∷ WRITER (Additive Int) | r) Unit
+writerTCO = tcoLoop 100000 \_ -> tell (Additive 1)
+
+readerTCO ∷ ∀ r. Run (reader ∷ READER Unit | r) Unit
+readerTCO = tcoLoop 100000 (const ask)
+
 main ∷ Eff (console ∷ CONSOLE, timer :: Examples.TIMER) Unit
 main = do
   program "42" # runState "" # runExcept # extract # logShow
@@ -118,6 +139,11 @@ main = do
     # runChoose
     # runBaseEff
   logShow (as ∷ Array Int)
+
+  let
+    tco1 = stateTCO # runState 0
+    tco2 = writerTCO # runWriter
+    tco3 = readerTCO # runReader unit
 
   Examples.main >>= logShow
   Examples.mainSleep
