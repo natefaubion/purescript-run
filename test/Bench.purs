@@ -36,12 +36,12 @@ test_mono = do
     else test_inner
   where
   test_inner = do
-    SC.modify (_ - 2)
+    SC.modify_ (_ - 2)
     EC.catchError test_error WC.tell
     test_mono
 
   test_error = do
-    SC.modify (_ + 1)
+    SC.modify_ (_ + 1)
     x ← SC.get
     EC.throwError (show x)
 
@@ -53,12 +53,12 @@ test_mono' = do
     else test_inner
   where
   test_inner = do
-    SC.modify (_ - 2)
+    SC.modify_ (_ - 2)
     EC.catchError test_error WC.tell
     test_mono'
 
   test_error = do
-    SC.modify (_ + 1)
+    SC.modify_ (_ + 1)
     x ← SC.get
     EC.throwError (show x)
 
@@ -75,12 +75,12 @@ test_mtl = do
     else test_inner
   where
   test_inner = do
-    SC.modify (_ - 2)
+    SC.modify_ (_ - 2)
     EC.catchError test_error WC.tell
     test_mtl
 
   test_error = do
-    SC.modify (_ + 1)
+    SC.modify_ (_ + 1)
     x ← SC.get
     EC.throwError (show x)
 

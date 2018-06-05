@@ -7,7 +7,7 @@
   },
   "devDependencies": {
     "pulp": "^12.0.1",
-    "purescript": "github:cryogenian/node-purescript-bin#master",
+    "purescript": "slamdata/node-purescript#0.12",
     "purescript-psa": "^0.6.0"
   }
 }

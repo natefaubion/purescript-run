@@ -23,24 +23,24 @@
     "test"
   ],
   "dependencies": {
-    "purescript-aff": "#compiler/0.12",
-    "purescript-console": "#compiler/0.12",
-    "purescript-either": "#compiler/0.12",
-    "purescript-free": "#compiler/0.12",
-    "purescript-maybe": "#compiler/0.12",
-    "purescript-newtype": "#compiler/0.12",
-    "purescript-prelude": "#compiler/0.12",
-    "purescript-tailrec": "#compiler/0.12",
-    "purescript-tuples": "#compiler/0.12",
-    "purescript-type-equality": "#compiler/0.12",
-    "purescript-unsafe-coerce": "#compiler/0.12",
-    "purescript-variant": "#compiler/0.12",
-    "purescript-profunctor": "#compiler/0.12"
+    "purescript-aff": "^5.0.0",
+    "purescript-console": "^4.1.0",
+    "purescript-either": "^4.0.0",
+    "purescript-free": "^5.0.0",
+    "purescript-maybe": "^4.0.0",
+    "purescript-newtype": "^3.0.0",
+    "purescript-prelude": "^4.0.0",
+    "purescript-tailrec": "^4.0.0",
+    "purescript-tuples": "^5.0.0",
+    "purescript-type-equality": "^3.0.0",
+    "purescript-unsafe-coerce": "^4.0.0",
+    "purescript-variant": "^5.0.0",
+    "purescript-profunctor": "^4.0.0"
   },
   "devDependencies": {
     "purescript-monad-loops": "cryogenian/purescript-monad-loops#compiler/0.12",
-    "purescript-control": "#compiler/0.12",
-    "purescript-minibench": "#compiler/0.12",
-    "purescript-identity": "#compiler/0.12"
+    "purescript-control": "^4.0.0",
+    "purescript-minibench": "^2.0.0",
+    "purescript-identity": "^4.0.0"
   }
 }
