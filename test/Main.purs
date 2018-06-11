@@ -2,7 +2,7 @@ module Test.Main where
 
 import Prelude
 
-import Control.Monad.Rec.Loops (whileM_)
+import Control.Monad.Rec.Class (tailRecM, Step(..))
 import Data.Array as Array
 import Data.Foldable (for_, oneOfMap)
 import Data.Monoid.Additive (Additive(..))
@@ -82,6 +82,14 @@ yesProgram = do
   whileM_ (gets (_ > 0)) do
     liftEffect $ log "Yes"
     modify (_ - 1)
+  where
+  whileM_
+    ∷ ∀ a
+    . Run MyEffects Boolean
+    → Run MyEffects a
+    → Run MyEffects Unit
+  whileM_ mb ma = flip tailRecM unit \a →
+    mb >>= if _ then ma $> Loop unit else pure $ Done unit
 
 chooseProgram ∷ ∀ r. Run (choose ∷ CHOOSE, effect ∷ EFFECT | r) Int
 chooseProgram = do
