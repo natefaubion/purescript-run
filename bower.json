@@ -24,7 +24,6 @@
   ],
   "dependencies": {
     "purescript-aff": "^5.0.0",
-    "purescript-console": "^4.1.0",
     "purescript-either": "^4.0.0",
     "purescript-free": "^5.0.0",
     "purescript-maybe": "^4.0.0",
@@ -41,6 +40,7 @@
   "devDependencies": {
     "purescript-control": "^4.0.0",
     "purescript-minibench": "^2.0.0",
-    "purescript-identity": "^4.0.0"
+    "purescript-identity": "^4.0.0",
+    "purescript-console": "^4.1.0"
   }
 }
