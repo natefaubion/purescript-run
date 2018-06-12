@@ -16,6 +16,7 @@ import Prelude
 
 import Data.Either (Either(..))
 import Data.Symbol (class IsSymbol)
+import Prim.Row as Row
 import Run (Run, SProxy(..), FProxy)
 import Run as Run
 
@@ -34,7 +35,7 @@ liftReader = liftReaderAt _reader
 liftReaderAt ∷
   ∀ t e a r s
   . IsSymbol s
-  ⇒ RowCons s (READER e) t r
+  ⇒ Row.Cons s (READER e) t r
   ⇒ SProxy s
   → Reader e a
   → Run r a
@@ -46,10 +47,10 @@ ask = askAt _reader
 askAt ∷
   ∀ t e r s
   . IsSymbol s
-  ⇒ RowCons s (READER e) t r
+  ⇒ Row.Cons s (READER e) t r
   ⇒ SProxy s
   → Run r e
-askAt sym = liftReaderAt sym (Reader id)
+askAt sym = liftReaderAt sym (Reader identity)
 
 local ∷ ∀ e a r. (e → e) → Run (reader ∷ READER e | r) a → Run (reader ∷ READER e | r) a
 local = localAt _reader
@@ -57,7 +58,7 @@ local = localAt _reader
 localAt ∷
   ∀ t e a r s
   . IsSymbol s
-  ⇒ RowCons s (READER e) t r
+  ⇒ Row.Cons s (READER e) t r
   ⇒ SProxy s
   → (e → e)
   → Run r a
@@ -82,7 +83,7 @@ runReader = runReaderAt _reader
 runReaderAt ∷
   ∀ t e a r s
   . IsSymbol s
-  ⇒ RowCons s (READER e) t r
+  ⇒ Row.Cons s (READER e) t r
   ⇒ SProxy s
   → e
   → Run r a

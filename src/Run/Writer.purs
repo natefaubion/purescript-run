@@ -17,9 +17,9 @@ module Run.Writer
 import Prelude
 
 import Data.Either (Either(..))
-import Data.Monoid (class Monoid, mempty)
 import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..))
+import Prim.Row as Row
 import Run (Run, SProxy(..), FProxy)
 import Run as Run
 
@@ -38,7 +38,7 @@ liftWriter = liftWriterAt _writer
 liftWriterAt ∷
   ∀ w a r t s
   . IsSymbol s
-  ⇒ RowCons s (WRITER w) t r
+  ⇒ Row.Cons s (WRITER w) t r
   ⇒ SProxy s
   → Writer w a
   → Run r a
@@ -50,7 +50,7 @@ tell = tellAt _writer
 tellAt ∷
   ∀ w r t s
   . IsSymbol s
-  ⇒ RowCons s (WRITER w) t r
+  ⇒ Row.Cons s (WRITER w) t r
   ⇒ SProxy s
   → w
   → Run r Unit
@@ -62,7 +62,7 @@ censor = censorAt _writer
 censorAt ∷
   ∀ w a r t s
   . IsSymbol s
-  ⇒ RowCons s (WRITER w) t r
+  ⇒ Row.Cons s (WRITER w) t r
   ⇒ SProxy s
   → (w → w)
   → Run r a
@@ -86,7 +86,7 @@ foldWriter = foldWriterAt _writer
 foldWriterAt ∷
   ∀ w b a r t s
   . IsSymbol s
-  ⇒ RowCons s (WRITER w) t r
+  ⇒ Row.Cons s (WRITER w) t r
   ⇒ SProxy s
   → (b → w → b)
   → b
@@ -111,7 +111,7 @@ runWriterAt ∷
   ∀ w a r t s
   . IsSymbol s
   ⇒ Monoid w
-  ⇒ RowCons s (WRITER w) t r
+  ⇒ Row.Cons s (WRITER w) t r
   ⇒ SProxy s
   → Run r a
   → Run t (Tuple w a)

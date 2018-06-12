@@ -28,6 +28,7 @@ import Prelude
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe(..), maybe')
 import Data.Symbol (class IsSymbol)
+import Prim.Row as Row
 import Run (Run, SProxy(..), FProxy)
 import Run as Run
 
@@ -48,7 +49,7 @@ liftExcept = liftExceptAt _except
 liftExceptAt
   ∷ ∀ t e a r s
   . IsSymbol s
-  ⇒ RowCons s (EXCEPT e) t r
+  ⇒ Row.Cons s (EXCEPT e) t r
   ⇒ SProxy s
   → Except e a
   → Run r a
@@ -60,7 +61,7 @@ throw = throwAt _except
 throwAt
   ∷ ∀ t e a r s
   . IsSymbol s
-  ⇒ RowCons s (EXCEPT e) t r
+  ⇒ Row.Cons s (EXCEPT e) t r
   ⇒ SProxy s
   → e
   → Run r a
@@ -72,7 +73,7 @@ fail = failAt _except
 failAt ∷
   ∀ t a r s
   . IsSymbol s
-  ⇒ RowCons s FAIL t r
+  ⇒ Row.Cons s FAIL t r
   ⇒ SProxy s
   → Run r a
 failAt sym = throwAt sym unit
@@ -83,7 +84,7 @@ rethrow = rethrowAt _except
 rethrowAt ∷
   ∀ t e a r s
   . IsSymbol s
-  ⇒ RowCons s (EXCEPT e) t r
+  ⇒ Row.Cons s (EXCEPT e) t r
   ⇒ SProxy s
   → Either e a
   → Run r a
@@ -95,7 +96,7 @@ note = noteAt _except
 noteAt ∷
   ∀ t e a r s
   . IsSymbol s
-  ⇒ RowCons s (EXCEPT e) t r
+  ⇒ Row.Cons s (EXCEPT e) t r
   ⇒ SProxy s
   → e
   → Maybe a
@@ -108,7 +109,7 @@ fromJust = fromJustAt _except
 fromJustAt ∷
   ∀ t a r s
   . IsSymbol s
-  ⇒ RowCons s FAIL t r
+  ⇒ Row.Cons s FAIL t r
   ⇒ SProxy s
   → Maybe a
   → Run r a
@@ -120,7 +121,7 @@ catch = catchAt _except
 catchAt ∷
   ∀ t e a r s
   . IsSymbol s
-  ⇒ RowCons s (EXCEPT e) t r
+  ⇒ Row.Cons s (EXCEPT e) t r
   ⇒ SProxy s
   → (e → Run t a)
   → Run r a
@@ -143,7 +144,7 @@ runExcept = runExceptAt _except
 runExceptAt ∷
   ∀ t e a r s
   . IsSymbol s
-  ⇒ RowCons s (EXCEPT e) t r
+  ⇒ Row.Cons s (EXCEPT e) t r
   ⇒ SProxy s
   → Run r a
   → Run t (Either e a)
@@ -165,7 +166,7 @@ runFail = runFailAt _except
 runFailAt ∷
   ∀ t a r s
   . IsSymbol s
-  ⇒ RowCons s FAIL t r
+  ⇒ Row.Cons s FAIL t r
   ⇒ SProxy s
   → Run r a
   → Run t (Maybe a)

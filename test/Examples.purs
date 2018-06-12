@@ -2,11 +2,10 @@ module Test.Examples where
 
 import Prelude
 
-import Control.Monad.Eff (Eff, kind Effect)
-import Control.Monad.Eff.Console (CONSOLE)
-import Control.Monad.Eff.Console as Console
+import Effect (Effect)
+import Effect.Console as Console
 import Data.Tuple (Tuple(..))
-import Run (EFF, FProxy, Run, SProxy(..), Step(..), interpret, liftEff, match, on, runAccumPure, runBaseEff, runCont, send)
+import Run (EFFECT, FProxy, Run, SProxy(..), Step(..), interpret, liftEffect, match, on, runAccumPure, runBaseEffect, runCont, send)
 import Run as Run
 
 data TalkF a
@@ -23,20 +22,20 @@ speak :: forall r. String -> Run (talk :: TALK | r) Unit
 speak str = Run.lift _talk (Speak str unit)
 
 listen :: forall r. Run (talk :: TALK | r) String
-listen = Run.lift _talk (Listen id)
+listen = Run.lift _talk (Listen identity)
 
-handleTalk :: forall eff r. TalkF ~> Run (eff :: EFF (console :: CONSOLE | eff) | r)
+handleTalk :: forall r. TalkF ~> Run (effect :: EFFECT | r)
 handleTalk = case _ of
   Speak str next -> do
-    liftEff $ Console.log str
+    liftEffect $ Console.log str
     pure next
   Listen reply -> do
     pure (reply "I am Groot")
 
 runTalk
-  :: forall r eff
-   . Run (eff :: EFF (console :: CONSOLE | eff), talk :: TALK | r)
-  ~> Run (eff :: EFF (console :: CONSOLE | eff) | r)
+  :: forall r
+   . Run (effect :: EFFECT, talk :: TALK | r)
+  ~> Run (effect :: EFFECT | r)
 runTalk = interpret (on _talk handleTalk send)
 
 ---
@@ -57,10 +56,10 @@ type DINNER = FProxy DinnerF
 _dinner = SProxy :: SProxy "dinner"
 
 eat :: forall r. Food -> Run (dinner :: DINNER | r) IsThereMore
-eat food = Run.lift _dinner (Eat food id)
+eat food = Run.lift _dinner (Eat food identity)
 
 checkPlease :: forall r. Run (dinner :: DINNER | r) Bill
-checkPlease = Run.lift _dinner (CheckPlease id)
+checkPlease = Run.lift _dinner (CheckPlease identity)
 
 type Tally = { stock :: Int, bill :: Bill }
 
@@ -94,21 +93,18 @@ dinnerTime = do
       bill <- checkPlease
       speak "Outrageous!"
 
-program2 :: forall eff r. Run (eff :: EFF (console :: CONSOLE | eff), dinner :: DINNER | r) Unit
+program2 :: forall r. Run (effect :: EFFECT, dinner :: DINNER | r) Unit
 program2 = dinnerTime # runTalk
 
-program3 :: forall eff r. Run (eff :: EFF (console :: CONSOLE | eff) | r) (Tuple Bill Unit)
+program3 :: forall r. Run (effect :: EFFECT | r) (Tuple Bill Unit)
 program3 = program2 # runDinnerPure { stock: 10, bill: 0 }
 
-main :: forall eff. Eff (console :: CONSOLE | eff) (Tuple Bill Unit)
-main = runBaseEff program3
+main :: Effect (Tuple Bill Unit)
+main = runBaseEffect program3
 
 ---
 
-foreign import data TIMER :: Effect
-
-foreign import setTimeout :: forall eff. Int -> Eff (timer :: TIMER | eff) Unit -> Eff (timer :: TIMER | eff) Unit
-
+foreign import setTimeout :: Int -> Effect Unit -> Effect Unit
 
 ---
 
@@ -144,7 +140,7 @@ programSleep = do
   sleep 3000
   log "I can't wait any longer!"
 
-mainSleep :: forall eff. Eff (console :: CONSOLE, timer :: TIMER | eff) Unit
+mainSleep :: Effect Unit
 mainSleep = programSleep # runCont go done
   where
   go = match

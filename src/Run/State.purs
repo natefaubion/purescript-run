@@ -25,6 +25,7 @@ import Prelude
 import Data.Either (Either(..))
 import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..), fst, snd)
+import Prim.Row as Row
 import Run (Run, SProxy(..), FProxy)
 import Run as Run
 
@@ -43,7 +44,7 @@ liftState = liftStateAt _state
 liftStateAt ∷
   ∀ q sym s a r
   . IsSymbol sym
-  ⇒ RowCons sym (STATE s) q r
+  ⇒ Row.Cons sym (STATE s) q r
   ⇒ SProxy sym
   → State s a
   → Run r a
@@ -55,7 +56,7 @@ modify = modifyAt _state
 modifyAt ∷
   ∀ q sym s r
   . IsSymbol sym
-  ⇒ RowCons sym (STATE s) q r
+  ⇒ Row.Cons sym (STATE s) q r
   ⇒ SProxy sym
   → (s → s)
   → Run r Unit
@@ -67,7 +68,7 @@ put = putAt _state
 putAt ∷
   ∀ q sym s r
   . IsSymbol sym
-  ⇒ RowCons sym (STATE s) q r
+  ⇒ Row.Cons sym (STATE s) q r
   ⇒ SProxy sym
   → s
   → Run r Unit
@@ -79,10 +80,10 @@ get = getAt _state
 getAt ∷
   ∀ q sym s r
   . IsSymbol sym
-  ⇒ RowCons sym (STATE s) q r
+  ⇒ Row.Cons sym (STATE s) q r
   ⇒ SProxy sym
   → Run r s
-getAt sym = liftStateAt sym $ State id id
+getAt sym = liftStateAt sym $ State identity identity
 
 gets ∷ ∀ s t r. (s → t) → Run (state ∷ STATE s | r) t
 gets = getsAt _state
@@ -90,7 +91,7 @@ gets = getsAt _state
 getsAt ∷
   ∀ q sym s t r
   . IsSymbol sym
-  ⇒ RowCons sym (STATE s) q r
+  ⇒ Row.Cons sym (STATE s) q r
   ⇒ SProxy sym
   → (s → t)
   → Run r t
@@ -102,7 +103,7 @@ runState = runStateAt _state
 runStateAt ∷
   ∀ q sym s r a
   . IsSymbol sym
-  ⇒ RowCons sym (STATE s) q r
+  ⇒ Row.Cons sym (STATE s) q r
   ⇒ SProxy sym
   → s
   → Run r a
@@ -126,7 +127,7 @@ evalState = evalStateAt _state
 evalStateAt ∷
   ∀ q sym s r a
   . IsSymbol sym
-  ⇒ RowCons sym (STATE s) q r
+  ⇒ Row.Cons sym (STATE s) q r
   ⇒ SProxy sym
   → s
   → Run r a
@@ -139,7 +140,7 @@ execState = execStateAt _state
 execStateAt ∷
   ∀ q sym s r a
   . IsSymbol sym
-  ⇒ RowCons sym (STATE s) q r
+  ⇒ Row.Cons sym (STATE s) q r
   ⇒ SProxy sym
   → s
   → Run r a
