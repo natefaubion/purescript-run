@@ -49,7 +49,7 @@ speak :: String -> Talk Unit
 speak str = liftF (Speak str unit)
 
 listen :: Talk String
-listen = liftF (Listen id)
+listen = liftF (Listen identity)
 
 -- Now we can write programs using our DSL.
 
@@ -67,8 +67,10 @@ exists as simple data. In order for it to do something, we'd need to provide
 an interpreter which pattern matches on the data types:
 
 ```purescript
+main :: Effect Unit
 main = foldFree go program
   where
+  go :: TalkF ~> Effect
   go = case _ of
     -- Just log any speak statement
     Speak str next -> do
@@ -176,7 +178,7 @@ speak :: forall r. String -> Free (VariantF (talk :: TALK | r)) Unit
 speak str = liftF (inj _talk (Speak str unit))
 
 listen :: forall r. Free (VariantF (talk :: TALK | r)) String
-listen = liftF (inj _talk (Listen id))
+listen = liftF (inj _talk (Listen identity))
 
 ---
 
@@ -185,10 +187,10 @@ type DINNER = FProxy DinnerF
 _dinner = SProxy :: SProxy "dinner"
 
 eat :: forall r. Food -> Free (VariantF (dinner :: DINNER | r)) IsThereMore
-eat food = liftF (inj _dinner (Eat food id))
+eat food = liftF (inj _dinner (Eat food identity))
 
 checkPlease :: forall r. Free (VariantF (dinner :: DINNER | r)) Bill
-checkPlease = liftF (inj _dinner (CheckPlease id))
+checkPlease = liftF (inj _dinner (CheckPlease identity))
 ```
 
 Now our DSLs can be used together without any extra lifting.
@@ -217,7 +219,7 @@ In fact, this library is just a combinator zoo for writing interpreters.
 
 ### Writing Interpreters
 
-Lets reviews our simple `TalkF` effect and example, now lifted into `Run`
+Lets review our simple `TalkF` effect and example, now lifted into `Run`
 instead of `Free`:
 
 ```purescript
@@ -233,7 +235,7 @@ speak :: forall r. String -> Run (talk :: TALK | r) Unit
 speak str = Run.lift _talk (Speak str unit)
 
 listen :: forall r. Run (talk :: TALK | r) String
-listen = Run.lift _talk (Listen id)
+listen = Run.lift _talk (Listen identity)
 
 program :: forall r. Run (talk :: TALK | r) Unit
 program = do
@@ -252,7 +254,7 @@ Since we need to handle a `VariantF`, we need to use the combinators from
 `purescript-variant`, which are re-exported by `purescript-run`.
 
 ```purescript
-handleTalk :: forall eff. TalkF ~> Eff (console :: CONSOLE | eff)
+handleTalk :: TalkF ~> Effect
 handleTalk = case _ of
   Speak str next -> do
     Console.log str
@@ -281,10 +283,10 @@ type DINNER = FProxy DinnerF
 _dinner :: SProxy :: SProxy "dinner"
 
 eat :: forall r. Food -> Run (dinner :: DINNER | r) IsThereMore
-eat food = Run.lift _dinner (Eat food id)
+eat food = Run.lift _dinner (Eat food identity)
 
 checkPlease :: forall r. Run (dinner :: DINNER | r) Bill
-checkPlease = Run.lift _dinner (CheckPlease id)
+checkPlease = Run.lift _dinner (CheckPlease identity)
 
 type LovelyEvening r = (talk :: TALK, dinner :: DINNER | r)
 
@@ -307,28 +309,28 @@ all effects. Instead we can use `send` for unmatched cases.
 
 ```purescript
 -- This now interprets it back into `Run` but with the `EFF` effect.
-handleTalk :: forall eff r. TalkF ~> Run (eff :: EFF (console :: CONSOLE | eff) | r)
+handleTalk :: forall r. TalkF ~> Run (effect :: EFFECT | r)
 handleTalk = case _ of
   Speak str next -> do
-    -- `liftEff` lifts native `Eff` effects into `Run`.
-    liftEff $ Console.log str
+    -- `liftEffect` lifts native `Effect` effects into `Run`.
+    liftEffect $ Console.log str
     pure next
   Listen reply -> do
     pure (reply "I am Groot")
 
 runTalk
-  :: forall r eff
-   . Run (eff :: EFF (console :: CONSOLE | eff), talk :: TALK | r)
-  ~> Run (eff :: EFF (console :: CONSOLE | eff) | r)
+  :: forall r
+   . Run (effect :: EFFECT, talk :: TALK | r)
+  ~> Run (effect :: EFFECT | r)
 runTalk = interpret (on _talk handleTalk send)
 
-program2 :: forall eff r. Run (eff :: EFF (console :: CONSOLE | eff), dinner :: DINNER | r) Unit
+program2 :: forall r. Run (effect :: EFFECT, dinner :: DINNER | r) Unit
 program2 = dinnerTime # runTalk
 ```
 
-We've interpreted the `TALK` effect in terms of native `Eff` effects, and so
+We've interpreted the `TALK` effect in terms of the native `Effect` type, and so
 it's no longer part of our set of `Run` effects. Instead, it has been
-replaced by `EFF`. `DINNER` has yet to be interpreted, and we can choose to
+replaced by `EFFECT`. `DINNER` has yet to be interpreted, and we can choose to
 do that at a later time.
 
 In fact, let's go ahead and do that, but we will interpret it in a completely
@@ -359,7 +361,7 @@ runDinnerPure = runAccumPure
   (\tally -> on _dinner (Loop <<< handleDinner tally) Done)
   (\tally a -> Tuple tally.bill a)
 
-program3 :: forall r. Run (eff :: EFF (console :: CONSOLE | eff) | r) (Tuple Bill Unit)
+program3 :: forall r. Run (effect :: EFFECT | r) (Tuple Bill Unit)
 program3 = program2 # runDinnerPure { stock: 10, bill: 0 }
 ```
 
@@ -374,13 +376,13 @@ Since `Eff` and `Aff` are the most likely target for effectful programs,
 there are a few combinators for extracting them.
 
 ```purescript
-program4 :: forall eff. Eff (console :: CONSOLE | eff) (Tuple Bill Unit)
-program4 = runBaseEff program3
+program4 :: Effect (Tuple Bill Unit)
+program4 = runBaseEffect program3
 ```
 
 Additionally there are also combinators for writing interpreters via
 continuation passing (`runCont`, `runAccumCont`). This is useful if you want
-to just use `Eff` callbacks as your base instead of something like `Aff`.
+to just use `Effect` callbacks as your base instead of something like `Aff`.
 
 ```purescript
 data LogF a = Log String a
@@ -415,7 +417,7 @@ program = do
   sleep 3000
   log "I can't wait any longer!"
 
-program2 :: forall eff. Eff (console :: CONSOLE, timer :: TIMER | eff) Unit
+program2 :: Effect Unit
 program2 = program # runCont go done
   where
   go = match
@@ -441,6 +443,6 @@ _guarantee_ stack safety in all cases, but this does come with some overhead.
 
 Since `Run` itself is stack-safe, it's OK to use `interpret`, `run`, and
 `runAccum` when interpreting an effect in terms of other `Run` effects. `Aff`
-is also designed to be stack safe. `Eff`, however, is not stack safe, and you
+is also designed to be stack safe. `Effect`, however, is not stack safe, and you
 should use the `*Rec` variations. It's not possible to guarantee stack-safety
 when using the `*Cont` interpreters.
