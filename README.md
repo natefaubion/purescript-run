@@ -102,7 +102,7 @@ type Dinner = Free DinnerF
 ```
 
 If we could somehow combine these two data types, we could have a lovely
-evening indeed. One options is to just define a new DSL which has the
+evening indeed. One option is to just define a new DSL which has the
 capabilities of both:
 
 ```purescript
@@ -113,7 +113,7 @@ data LovelyEveningF a
 type LovelyEvening = Free LovelyEveningF
 ```
 
-But now everytime we want to use one DSL or another, we have to explicitly
+But now every time we want to use one DSL or another, we have to explicitly
 lift them into `LovelyEvening` using a natural transformation (`~>`).
 
 ```purescript
@@ -302,7 +302,7 @@ dinnerTime = do
 ```
 
 We could interpret both of these effects together in one go by providing
-multiple handlers, but often times we only want to handle them one at a time.
+multiple handlers, but oftentimes we only want to handle them in isolation.
 That is, we want to interpret one effect in terms of other effects at our
 convenience. We can't use `case_` then, because `case_` must always handle
 all effects. Instead we can use `send` for unmatched cases.
