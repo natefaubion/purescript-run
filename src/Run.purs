@@ -33,7 +33,7 @@ import Control.Alt (class Alt)
 import Control.Alternative (class Alternative)
 import Effect (Effect)
 import Effect.Class (class MonadEffect)
-import Effect.Class as Eff
+import Effect.Class as Effect
 import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff)
 import Control.Monad.Free (Free, liftF, runFree, runFreeM, resume')
@@ -62,7 +62,7 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | type MyEffects =
 -- |   ( state ∷ STATE Int
 -- |   , except ∷ EXCEPT String
--- |   , eff ∷ EFF (console ∷ CONSOLE)
+-- |   , effect ∷ EFFECT
 -- |   )
 -- |
 -- | yesProgram ∷ Run MyEffects Unit
@@ -70,14 +70,22 @@ import Unsafe.Coerce (unsafeCoerce)
 -- |   whenM (gets (_ < 0)) do
 -- |     throw "Number is less than 0"
 -- |   whileM_ (gets (_ > 0)) do
--- |     liftEff $ log "Yes"
+-- |     liftEffect $ log "Yes"
 -- |     modify (_ - 1)
+-- |   where
+-- |   whileM_
+-- |     ∷ ∀ a
+-- |     . Run MyEffects Boolean
+-- |     → Run MyEffects a
+-- |     → Run MyEffects Unit
+-- |   whileM_ mb ma = flip tailRecM unit \a →
+-- |     mb >>= if _ then ma $> Loop unit else pure $ Done unit
 -- |
 -- | main =
 -- |   yesProgram
--- |     # catch (liftEff <<< log)
+-- |     # catch (liftEffect <<< log)
 -- |     # runState 10
--- |     # runBaseEff
+-- |     # runBaseEffect
 -- |     # void
 -- | ````
 newtype Run r a = Run (Free (VariantF r) a)
@@ -300,14 +308,14 @@ runAccumPure k1 k2 = loop
     Right a →
       pure (k2 s a)
 
--- | Type synonym for using `Eff` as an effect.
+-- | Type synonym for using `Effect` as an effect.
 type EFFECT = FProxy Effect
 
--- Lift an `Eff` effect into the `Run` Monad via the `eff` label.
+-- Lift an `Effect` effect into the `Run` Monad via the `effect` label.
 liftEffect ∷ ∀ r. Effect ~> Run (effect ∷ EFFECT | r)
 liftEffect = lift (SProxy ∷ SProxy "effect")
 
--- | Runs a base `Eff` effect.
+-- | Runs a base `Effect` effect.
 runBaseEffect ∷ Run (effect ∷ EFFECT) ~> Effect
 runBaseEffect = runRec $ match { effect: \a → a }
 
@@ -322,14 +330,14 @@ liftAff = lift (SProxy ∷ SProxy "aff")
 runBaseAff ∷ Run (aff ∷ AFF) ~> Aff
 runBaseAff = run $ match { aff: \a → a }
 
--- | Runs base `Aff` and `Eff` together as one effect.
+-- | Runs base `Aff` and `Effect` together as one effect.
 runBaseAff' ∷ Run (aff ∷ AFF, effect ∷ EFFECT) ~> Aff
-runBaseAff' = run $ match { aff: \a → a, effect: \a → Eff.liftEffect a }
+runBaseAff' = run $ match { aff: \a → a, effect: \a → Effect.liftEffect a }
 
-instance runMonadEff ∷ (TypeEquals (RProxy r1) (RProxy (effect ∷ EFFECT | r2))) ⇒ MonadEffect (Run r1) where
+instance runMonadEffect ∷ (TypeEquals (RProxy r1) (RProxy (effect ∷ EFFECT | r2))) ⇒ MonadEffect (Run r1) where
   liftEffect = fromRows <<< liftEffect
 
--- | This will insert an `EFF` effect because `MonadAff` entails `MonadEff`.
+-- | This will insert an `EFFECT` effect because `MonadAff` entails `MonadEffect`.
 -- | If you don't want this, use `Run.liftAff` rather than `Control.Monad.Aff.Class.liftAff`.
 instance runMonadAff ∷ (TypeEquals (RProxy r1) (RProxy (aff ∷ AFF, effect ∷ EFFECT | r2))) ⇒ MonadAff (Run r1) where
   liftAff = fromRows <<< liftAff
