@@ -47,7 +47,7 @@ import Data.Symbol (SProxy(..)) as Exports
 import Data.Symbol (SProxy(..), class IsSymbol)
 import Data.Tuple (Tuple(..), curry, uncurry)
 import Partial.Unsafe (unsafeCrashWith)
-import Run.Internal (_choose, CHOOSE, Choose(..), toRows, fromRows)
+import Run.Internal (_choose, CHOOSE, Choose(..), _empty, EMPTY, Empty(..), toRows, fromRows)
 import Type.Equality (class TypeEquals)
 import Prim.Row as Row
 import Type.Row (RProxy)
@@ -345,10 +345,13 @@ instance runMonadAff ∷ (TypeEquals (RProxy r1) (RProxy (aff ∷ AFF, effect �
 liftChoose ∷ ∀ r a. Choose a → Run (choose ∷ CHOOSE | r) a
 liftChoose = lift _choose
 
+liftEmpty :: forall r a. Empty a -> Run (empty :: EMPTY | r) a
+liftEmpty = lift _empty
+
 instance runAlt ∷ (TypeEquals (RProxy r1) (RProxy (choose ∷ CHOOSE | r2))) ⇒ Alt (Run r1) where
   alt a b = fromRows $ liftChoose (Alt identity) >>= if _ then toRows a else toRows b
 
-instance runPlus ∷ (TypeEquals (RProxy r1) (RProxy (choose ∷ CHOOSE | r2))) ⇒ Plus (Run r1) where
-  empty = fromRows $ liftChoose Empty
+instance runPlus ∷ (TypeEquals (RProxy r1) (RProxy (choose :: CHOOSE, empty ∷ EMPTY | r2))) ⇒ Plus (Run r1) where
+  empty = fromRows $ liftEmpty Empty
 
-instance runAlternative ∷ (TypeEquals (RProxy r1) (RProxy (choose ∷ CHOOSE | r2))) ⇒ Alternative (Run r1)
+instance runAlternative ∷ (TypeEquals (RProxy r1) (RProxy (choose ∷ CHOOSE, empty :: EMPTY | r2))) ⇒ Alternative (Run r1)

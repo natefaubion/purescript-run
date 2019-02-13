@@ -2,6 +2,9 @@ module Run.Internal
   ( Choose(..)
   , CHOOSE
   , _choose
+  , Empty(..)
+  , EMPTY
+  , _empty
   , toRows
   , fromRows
   ) where
@@ -14,8 +17,7 @@ import Type.Row (RProxy)
 import Unsafe.Coerce (unsafeCoerce)
 
 data Choose a
-  = Empty
-  | Alt (Boolean → a)
+  = Alt (Boolean → a)
 
 derive instance functorChoose ∷ Functor Choose
 
@@ -23,6 +25,15 @@ type CHOOSE = FProxy Choose
 
 _choose ∷ SProxy "choose"
 _choose = SProxy
+
+data Empty a = Empty
+
+derive instance functorEmpty :: Functor Empty
+
+type EMPTY = FProxy Empty
+
+_empty :: SProxy "empty"
+_empty = SProxy
 
 toRows
   ∷ ∀ f r1 r2 a
