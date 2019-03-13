@@ -33,7 +33,7 @@
     "purescript-tuples": "^5.0.0",
     "purescript-type-equality": "^3.0.0",
     "purescript-unsafe-coerce": "^4.0.0",
-    "purescript-variant": "^5.0.0",
+    "purescript-variant": "^6.0.0",
     "purescript-profunctor": "^4.0.0",
     "purescript-effect": "^2.0.0"
   },
