@@ -10,7 +10,9 @@ import Effect (Effect)
 import Effect.Console (logShow, log)
 import Run (EFFECT, FProxy, Run, SProxy(..), lift, liftEffect, on, extract, runBaseEffect, run, send)
 import Run.Choose (CHOOSE, runChoose)
+import Run.Empty (runEmpty)
 import Run.Except (EXCEPT, catch, runExcept, runExceptAt, throw, throwAt)
+import Run.Internal (EMPTY)
 import Run.Reader (READER, ask, runReader)
 import Run.State (STATE, get, gets, modify, put, putAt, runState, runStateAt)
 import Run.Writer (WRITER, runWriter, tell)
@@ -91,7 +93,7 @@ yesProgram = do
   whileM_ mb ma = flip tailRecM unit \a →
     mb >>= if _ then ma $> Loop unit else pure $ Done unit
 
-chooseProgram ∷ ∀ r. Run (choose ∷ CHOOSE, effect ∷ EFFECT | r) Int
+chooseProgram ∷ ∀ r. Run (choose ∷ CHOOSE, effect :: EFFECT, empty :: EMPTY | r) Int
 chooseProgram = do
   n ← oneOfMap pure [1, 2, 3, 4, 5]
   liftEffect $ log $ show n
@@ -145,6 +147,8 @@ main = do
 
   as ← chooseProgram
     # runChoose
+    # runEmpty
+    # map join
     # runBaseEffect
   logShow (as ∷ Array Int)
 
