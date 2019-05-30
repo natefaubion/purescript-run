@@ -31,11 +31,6 @@ import Prelude
 
 import Control.Alt (class Alt)
 import Control.Alternative (class Alternative)
-import Effect (Effect)
-import Effect.Class (class MonadEffect)
-import Effect.Class as Effect
-import Effect.Aff (Aff)
-import Effect.Aff.Class (class MonadAff)
 import Control.Monad.Free (Free, liftF, runFree, runFreeM, resume')
 import Control.Monad.Rec.Class (Step(..)) as Exports
 import Control.Monad.Rec.Class (class MonadRec, Step(..), tailRecM)
@@ -46,11 +41,16 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (SProxy(..)) as Exports
 import Data.Symbol (SProxy(..), class IsSymbol)
 import Data.Tuple (Tuple(..), curry, uncurry)
+import Effect (Effect)
+import Effect.Aff (Aff)
+import Effect.Aff.Class (class MonadAff)
+import Effect.Class (class MonadEffect)
+import Effect.Class as Effect
 import Partial.Unsafe (unsafeCrashWith)
-import Run.Internal (_choose, CHOOSE, Choose(..), toRows, fromRows)
-import Type.Equality (class TypeEquals)
 import Prim.Row as Row
-import Type.Row (RProxy)
+import Run.Internal (_choose, CHOOSE, Choose(..), toRows, fromRows)
+import Type.Data.Row (RProxy)
+import Type.Equality (class TypeEquals)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | An extensible effect Monad, indexed by a set of effect functors. Effects

@@ -9,8 +9,8 @@ module Run.Internal
 import Prelude
 
 import Data.Functor.Variant (FProxy, SProxy(..))
+import Type.Data.Row (RProxy)
 import Type.Equality (class TypeEquals)
-import Type.Row (RProxy)
 import Unsafe.Coerce (unsafeCoerce)
 
 data Choose a
