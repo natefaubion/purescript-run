@@ -308,7 +308,7 @@ convenience. We can't use `case_` then, because `case_` must always handle
 all effects. Instead we can use `send` for unmatched cases.
 
 ```purescript
--- This now interprets it back into `Run` but with the `EFF` effect.
+-- This now interprets it back into `Run` but with the `EFFECT` effect.
 handleTalk :: forall r. TalkF ~> Run (effect :: EFFECT | r)
 handleTalk = case _ of
   Speak str next -> do
@@ -366,13 +366,13 @@ program3 = program2 # runDinnerPure { stock: 10, bill: 0 }
 ```
 
 Since both `runPure` and `runAccumPure` fully interpret their result without
-running through some other `Monad` or `Run` affect, we need to preserve stack
+running through some other `Monad` or `Run` effect, we need to preserve stack
 safety using the `Step` data type from `Control.Monad.Rec.Class`. This is why
 you see the `Loop` and `Done` constructors. `Loop` is used in the case of a
 match, and `Done` is used in the default case.
 
-Looking at the type of `program3`, all we have left are raw `Eff` effects.
-Since `Eff` and `Aff` are the most likely target for effectful programs,
+Looking at the type of `program3`, all we have left are raw `Effect` effects.
+Since `Effect` and `Aff` are the most likely target for effectful programs,
 there are a few combinators for extracting them.
 
 ```purescript
@@ -429,7 +429,7 @@ program2 = program # runCont go done
     Console.log "Done!"
 ```
 
-In this case, the functor component of our effects now has the `Eff`
+In this case, the functor component of our effects now has the `Effect`
 continuation (or callback) embedded in it, and we just invoke it to run the
 rest of the program.
 
