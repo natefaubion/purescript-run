@@ -41,7 +41,7 @@ liftReaderAt ∷
   → Run r a
 liftReaderAt = Run.lift
 
-ask ∷ ∀ e r . Run (reader ∷ READER e | r) e
+ask ∷ ∀ e r. Run (reader ∷ READER e | r) e
 ask = askAt _reader
 
 askAt ∷
@@ -50,7 +50,19 @@ askAt ∷
   ⇒ Row.Cons s (READER e) t r
   ⇒ SProxy s
   → Run r e
-askAt sym = liftReaderAt sym (Reader identity)
+askAt sym = asksAt sym identity
+
+asks ∷ ∀ e r a. (e → a) → Run (reader ∷ READER e | r) a
+asks = asksAt _reader
+
+asksAt ∷
+  ∀ t e r s a
+  . IsSymbol s
+  ⇒ Row.Cons s (READER e) t r
+  ⇒ SProxy s
+  → (e → a)
+  → Run r a
+asksAt sym f = liftReaderAt sym (Reader f)
 
 local ∷ ∀ e a r. (e → e) → Run (reader ∷ READER e | r) a → Run (reader ∷ READER e | r) a
 local = localAt _reader
