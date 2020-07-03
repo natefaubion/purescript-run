@@ -5,7 +5,9 @@ module Run.Reader
   , liftReader
   , liftReaderAt
   , ask
+  , asks
   , askAt
+  , asksAt
   , local
   , localAt
   , runReader
