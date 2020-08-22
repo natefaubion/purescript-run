@@ -9,7 +9,7 @@ implementation for PureScript.
 ## Install
 
 ```
-bower install purescript-run
+spago install run
 ```
 
 ## Documentation
