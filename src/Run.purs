@@ -18,6 +18,7 @@ module Run
   , expand
   , EFFECT
   , AFF
+  , PAR_AFF
   , liftEffect
   , liftAff
   , runBaseEffect
@@ -34,15 +35,16 @@ import Control.Alternative (class Alternative)
 import Control.Monad.Free (Free, liftF, runFree, runFreeM, resume')
 import Control.Monad.Rec.Class (Step(..)) as Exports
 import Control.Monad.Rec.Class (class MonadRec, Step(..), tailRecM)
+import Control.Parallel (class Parallel, parallel, sequential)
 import Control.Plus (class Plus)
 import Data.Either (Either(..))
-import Data.Functor.Variant (FProxy(..), VariantF, case_, default, inj, match, on, onMatch)
+import Data.Functor.Variant (FProxy(..), SProxy(..), VariantF, case_, default, inj, match, on, onMatch)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (SProxy(..)) as Exports
 import Data.Symbol (SProxy(..), class IsSymbol)
 import Data.Tuple (Tuple(..), curry, uncurry)
 import Effect (Effect)
-import Effect.Aff (Aff)
+import Effect.Aff (Aff, ParAff)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
 import Effect.Class as Effect
@@ -322,6 +324,9 @@ runBaseEffect = runRec $ match { effect: \a → a }
 -- | Type synonym for using `Aff` as an effect.
 type AFF = FProxy Aff
 
+-- | Type synonym for using `ParAff` as an effect.
+type PAR_AFF = FProxy ParAff
+
 -- | Lift an `Aff` effect into the `Run` Monad via the `aff` label.
 liftAff ∷ ∀ r. Aff ~> Run (aff ∷ AFF | r)
 liftAff = lift (SProxy ∷ SProxy "aff")
@@ -341,6 +346,29 @@ instance runMonadEffect ∷ (TypeEquals (RProxy r1) (RProxy (effect ∷ EFFECT |
 -- | If you don't want this, use `Run.liftAff` rather than `Control.Monad.Aff.Class.liftAff`.
 instance runMonadAff ∷ (TypeEquals (RProxy r1) (RProxy (aff ∷ AFF, effect ∷ EFFECT | r2))) ⇒ MonadAff (Run r1) where
   liftAff = fromRows <<< liftAff
+
+instance runParallel ::
+  (TypeEquals (RProxy r1) (RProxy (aff :: AFF | r2))
+  ,TypeEquals (RProxy r3) (RProxy (parAff :: PAR_AFF | r2)))
+    => Parallel (Run r3) (Run r1) where
+  -- The unsafeCoerce is there because the compiler can't find the Row.Union instance (so I can't use `expand`)
+  -- It basically coerces from ( aff :: AFF | r2 ) to ( parAff :: PAR_AFF, aff :: AFF | r2 )
+  parallel
+    = toRows 
+    >>> unsafeCoerce 
+    >>> interpretRec (on (SProxy :: SProxy "aff") handleAff send) 
+    >>> fromRows
+    where
+    handleAff :: forall a r. Aff a -> Run ( parAff :: PAR_AFF | r ) a
+    handleAff = parallel >>> lift (SProxy :: SProxy "parAff")
+  sequential 
+    = toRows 
+    >>> unsafeCoerce 
+    >>> interpretRec (on (SProxy :: SProxy "parAff") handleParAff send) 
+    >>> fromRows
+    where
+    handleParAff :: forall a r. ParAff a -> Run ( aff :: AFF | r ) a
+    handleParAff = sequential >>> lift (SProxy :: SProxy "aff")
 
 liftChoose ∷ ∀ r a. Choose a → Run (choose ∷ CHOOSE | r) a
 liftChoose = lift _choose
