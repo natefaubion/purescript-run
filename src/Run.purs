@@ -104,7 +104,7 @@ instance monadRecRun :: MonadRec (Run r) where
   tailRecM f = loop
     where
     loop a = do
-      b ← f a
+      b <- f a
       case b of
         Done r -> pure r
         Loop n -> loop n

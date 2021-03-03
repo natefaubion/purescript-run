@@ -2,11 +2,13 @@ module Test.Examples where
 
 import Prelude
 
+import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Console as Console
-import Data.Tuple (Tuple(..))
-import Run (EFFECT, FProxy, Run, SProxy(..), Step(..), interpret, liftEffect, match, on, runAccumPure, runBaseEffect, runCont, send)
+import Run (EFFECT, Run, Step(..), interpret, liftEffect, match, on, runAccumPure, runBaseEffect, runCont, send)
 import Run as Run
+import Type.Proxy (Proxy(..))
+import Type.Row (type (+))
 
 data TalkF a
   = Speak String a
@@ -14,17 +16,17 @@ data TalkF a
 
 derive instance functorTalkF :: Functor TalkF
 
-type TALK = FProxy TalkF
+type TALK r = (talk :: TalkF | r)
 
-_talk = SProxy :: SProxy "talk"
+_talk = Proxy :: Proxy "talk"
 
-speak :: forall r. String -> Run (talk :: TALK | r) Unit
+speak :: forall r. String -> Run (TALK + r) Unit
 speak str = Run.lift _talk (Speak str unit)
 
-listen :: forall r. Run (talk :: TALK | r) String
+listen :: forall r. Run (TALK + r) String
 listen = Run.lift _talk (Listen identity)
 
-handleTalk :: forall r. TalkF ~> Run (effect :: EFFECT | r)
+handleTalk :: forall r. TalkF ~> Run (EFFECT + r)
 handleTalk = case _ of
   Speak str next -> do
     liftEffect $ Console.log str
@@ -34,8 +36,8 @@ handleTalk = case _ of
 
 runTalk
   :: forall r
-   . Run (effect :: EFFECT, talk :: TALK | r)
-  ~> Run (effect :: EFFECT | r)
+   . Run (EFFECT + TALK + r)
+  ~> Run (EFFECT + r)
 runTalk = interpret (on _talk handleTalk send)
 
 ---
@@ -51,14 +53,14 @@ data DinnerF a
 
 derive instance functorDinnerF :: Functor DinnerF
 
-type DINNER = FProxy DinnerF
+type DINNER r = (dinner :: DinnerF | r)
 
-_dinner = SProxy :: SProxy "dinner"
+_dinner = Proxy :: Proxy "dinner"
 
-eat :: forall r. Food -> Run (dinner :: DINNER | r) IsThereMore
+eat :: forall r. Food -> Run (DINNER + r) IsThereMore
 eat food = Run.lift _dinner (Eat food identity)
 
-checkPlease :: forall r. Run (dinner :: DINNER | r) Bill
+checkPlease :: forall r. Run (DINNER + r) Bill
 checkPlease = Run.lift _dinner (CheckPlease identity)
 
 type Tally = { stock :: Int, bill :: Bill }
@@ -74,14 +76,14 @@ handleDinner tally = case _ of
   CheckPlease reply ->
     Tuple tally (reply tally.bill)
 
-runDinnerPure :: forall r a. Tally -> Run (dinner :: DINNER | r) a -> Run r (Tuple Bill a)
+runDinnerPure :: forall r a. Tally -> Run (DINNER + r) a -> Run r (Tuple Bill a)
 runDinnerPure = runAccumPure
   (\tally -> on _dinner (Loop <<< handleDinner tally) Done)
   (\tally a -> Tuple tally.bill a)
 
 ---
 
-type LovelyEvening r = (talk :: TALK, dinner :: DINNER | r)
+type LovelyEvening r = (TALK + DINNER + r)
 
 dinnerTime :: forall r. Run (LovelyEvening r) Unit
 dinnerTime = do
@@ -93,10 +95,10 @@ dinnerTime = do
       bill <- checkPlease
       speak "Outrageous!"
 
-program2 :: forall r. Run (effect :: EFFECT, dinner :: DINNER | r) Unit
+program2 :: forall r. Run (EFFECT + DINNER + r) Unit
 program2 = dinnerTime # runTalk
 
-program3 :: forall r. Run (effect :: EFFECT | r) (Tuple Bill Unit)
+program3 :: forall r. Run (EFFECT + r) (Tuple Bill Unit)
 program3 = program2 # runDinnerPure { stock: 10, bill: 0 }
 
 main :: Effect (Tuple Bill Unit)
@@ -112,11 +114,11 @@ data LogF a = Log String a
 
 derive instance functorLogF :: Functor LogF
 
-type LOG = FProxy LogF
+type LOG r = (log :: LogF | r)
 
-_log = SProxy :: SProxy "log"
+_log = Proxy :: Proxy "log"
 
-log :: forall r. String -> Run (log :: LOG | r) Unit
+log :: forall r. String -> Run (LOG + r) Unit
 log str = Run.lift _log (Log str unit)
 
 ---
@@ -125,16 +127,16 @@ data SleepF a = Sleep Int a
 
 derive instance functorSleepF :: Functor SleepF
 
-type SLEEP = FProxy SleepF
+type SLEEP r = (sleep :: SleepF | r)
 
-_sleep = SProxy :: SProxy "sleep"
+_sleep = Proxy :: Proxy "sleep"
 
-sleep :: forall r. Int -> Run (sleep :: SLEEP | r) Unit
+sleep :: forall r. Int -> Run (SLEEP + r) Unit
 sleep ms = Run.lift _sleep (Sleep ms unit)
 
 ---
 
-programSleep :: forall r. Run (sleep :: SLEEP, log :: LOG | r) Unit
+programSleep :: forall r. Run (SLEEP + LOG + r) Unit
 programSleep = do
   log "I guess I'll wait..."
   sleep 3000

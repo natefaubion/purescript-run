@@ -2,8 +2,6 @@ module Test.Bench where
 
 import Prelude
 
-import Effect (Effect)
-import Effect.Console (log)
 import Control.Monad.Error.Class as EC
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.State (StateT, runStateT)
@@ -13,6 +11,8 @@ import Control.Monad.Writer (WriterT, runWriterT)
 import Control.Monad.Writer.Class as WC
 import Data.Identity (Identity(..))
 import Data.Newtype (un)
+import Effect (Effect)
+import Effect.Console (log)
 import Performance.Minibench (benchWith)
 import Run (Run, extract)
 import Run.Except (EXCEPT)
@@ -21,16 +21,17 @@ import Run.State (STATE)
 import Run.State as RS
 import Run.Writer (WRITER)
 import Run.Writer as RW
+import Type.Row (type (+))
 
 type TestT = ExceptT String (WriterT String (StateT Int Trampoline))
 
 type TestT' = ExceptT String (WriterT String (StateT Int Identity))
 
-type TestR = Run (state ∷ STATE Int, writer :: WRITER String, except ∷ EXCEPT String)
+type TestR = Run (STATE Int + WRITER String + EXCEPT String + ())
 
-test_mono ∷ TestT Int
+test_mono :: TestT Int
 test_mono = do
-  x ← SC.get
+  x <- SC.get
   if x <= 0
     then pure 0
     else test_inner
@@ -42,12 +43,12 @@ test_mono = do
 
   test_error = do
     SC.modify_ (_ + 1)
-    x ← SC.get
+    x <- SC.get
     EC.throwError (show x)
 
-test_mono' ∷ TestT' Int
+test_mono' :: TestT' Int
 test_mono' = do
-  x ← SC.get
+  x <- SC.get
   if x <= 0
     then pure 0
     else test_inner
@@ -59,17 +60,17 @@ test_mono' = do
 
   test_error = do
     SC.modify_ (_ + 1)
-    x ← SC.get
+    x <- SC.get
     EC.throwError (show x)
 
 test_mtl
-  ∷ ∀ m
-  . SC.MonadState Int m
-  ⇒ WC.MonadWriter String m
-  ⇒ EC.MonadError String m
-  ⇒ m Int
+  :: forall m
+   . SC.MonadState Int m
+  => WC.MonadWriter String m
+  => EC.MonadError String m
+  => m Int
 test_mtl = do
-  x ← SC.get
+  x <- SC.get
   if x <= 0
     then pure 0
     else test_inner
@@ -81,12 +82,12 @@ test_mtl = do
 
   test_error = do
     SC.modify_ (_ + 1)
-    x ← SC.get
+    x <- SC.get
     EC.throwError (show x)
 
-test_run ∷ TestR Int
+test_run :: TestR Int
 test_run = do
-  x ← RS.get
+  x <- RS.get
   if x <= 0
     then pure 0
     else test_inner
@@ -98,13 +99,13 @@ test_run = do
 
   test_error = do
     RS.modify (_ + 1)
-    x ← RS.get
+    x <- RS.get
     RE.throw (show x)
 
-main ∷ Effect Unit
+main :: Effect Unit
 main = do
   log "Transformers (monomorphic/trampoline)"
-  benchWith 100 \_ →
+  benchWith 100 \_ ->
     test_mono
       # runExceptT
       # runWriterT
@@ -113,7 +114,7 @@ main = do
 
   gc
   log "Transformers (monomorphic/identity)"
-  benchWith 100 \_ →
+  benchWith 100 \_ ->
     test_mono'
       # runExceptT
       # runWriterT
@@ -122,7 +123,7 @@ main = do
 
   gc
   log "Transformers (mtl/trampoline)"
-  benchWith 100 \_ →
+  benchWith 100 \_ ->
     test_mtl
       # runExceptT
       # runWriterT
@@ -131,7 +132,7 @@ main = do
 
   gc
   log "Transformers (mtl/identity)"
-  benchWith 100 \_ →
+  benchWith 100 \_ ->
     test_mtl
       # runExceptT
       # runWriterT
@@ -140,7 +141,7 @@ main = do
 
   gc
   log "Run (free)"
-  benchWith 100 \_ →
+  benchWith 100 \_ ->
     test_run
       # RE.runExcept
       # RW.runWriter

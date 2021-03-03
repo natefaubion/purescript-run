@@ -33,8 +33,8 @@ runChoose = loop
       Left a' -> case a' of
         Empty -> pure empty
         Alt k -> do
-          x ← loop (k true)
-          y ← loop (k false)
+          x <- loop (k true)
+          y <- loop (k false)
           pure (alt x y)
       Right a' ->
         Run.send a' >>= loop
