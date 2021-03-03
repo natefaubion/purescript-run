@@ -8,74 +8,71 @@ import Data.Foldable (for_, oneOfMap)
 import Data.Monoid.Additive (Additive(..))
 import Effect (Effect)
 import Effect.Console (logShow, log)
-import Run (EFFECT, FProxy, Run, SProxy(..), lift, liftEffect, on, extract, runBaseEffect, run, send)
+import Run (EFFECT, Run, lift, liftEffect, on, extract, runBaseEffect, run, send)
 import Run.Choose (CHOOSE, runChoose)
-import Run.Except (EXCEPT, catch, runExcept, runExceptAt, throw, throwAt)
+import Run.Except (EXCEPT, _except, catch, runExcept, runExceptAt, throw, throwAt)
 import Run.Reader (READER, ask, runReader)
-import Run.State (STATE, get, gets, modify, put, putAt, runState, runStateAt)
+import Run.State (STATE, _state, get, gets, modify, put, putAt, runState, runStateAt)
 import Run.Writer (WRITER, runWriter, tell)
 import Test.Examples as Examples
+import Type.Proxy (Proxy(..))
+import Type.Row (type (+))
 
 data Talk a
   = Speak String a
-  | Listen (String → a)
+  | Listen (String -> a)
 
-derive instance functorTalk ∷ Functor Talk
+derive instance functorTalk :: Functor Talk
 
-type TALK = FProxy Talk
+type TALK r = (talk :: Talk | r)
 
-_talk ∷ SProxy "talk"
-_talk = SProxy
+_talk :: Proxy "talk"
+_talk = Proxy
 
-speak ∷ ∀ r. String → Run (talk ∷ TALK | r) Unit
+speak :: forall r. String -> Run (TALK + r) Unit
 speak a = lift _talk $ Speak a unit
 
-listen ∷ ∀ r. Run (talk ∷ TALK | r) String
+listen :: forall r. Run (TALK + r) String
 listen = lift _talk $ Listen identity
 
 ---
 
-program ∷ ∀ r. String → Run (except ∷ EXCEPT String, state ∷ STATE String | r) Int
+program :: forall r. String -> Run (EXCEPT String + STATE String + r) Int
 program a = do
   put "Hello"
   if a == "12"
     then put "World" $> 12
     else throw "Not 12"
 
-program2 ∷ ∀ r. Run (state ∷ STATE Int, effect ∷ EFFECT | r) Int
+program2 :: forall r. Run (STATE Int + EFFECT + r) Int
 program2 = do
-  for_ (Array.range 1 100000) \n → do
+  for_ (Array.range 1 100000) \n -> do
     modify (_ + 1)
   liftEffect $ log "Done"
   get
 
-program3 ∷ ∀ r. Run (talk ∷ TALK | r) Unit
+program3 :: forall r. Run (TALK + r) Unit
 program3 = do
   speak "Hello, there."
   speak "What is your name?"
-  name ← listen
+  name <- listen
   speak $ "Nice to meet you, " <> name <> "!"
 
-program4 ∷ ∀ r. String → Run (exc ∷ EXCEPT String, st ∷ STATE String | r) Int
+program4 :: forall r. String -> Run (EXCEPT String + STATE String + r) Int
 program4 a = do
-  putAt _st "Hello"
+  putAt _state "Hello"
   if a == "12"
-    then putAt _st "World" $> 12
-    else throwAt _exc "Not 12"
-
-_exc ∷ SProxy "exc"
-_exc = SProxy
-
-_st ∷ SProxy "st"
-_st = SProxy
+    then putAt _state "World" $> 12
+    else throwAt _except "Not 12"
 
 type MyEffects =
-  ( state ∷ STATE Int
-  , except ∷ EXCEPT String
-  , effect ∷ EFFECT
+  ( STATE Int
+  + EXCEPT String
+  + EFFECT
+  + ()
   )
 
-yesProgram ∷ Run MyEffects Unit
+yesProgram :: Run MyEffects Unit
 yesProgram = do
   whenM (gets (_ < 0)) do
     throw "Number is less than 0"
@@ -84,20 +81,20 @@ yesProgram = do
     modify (_ - 1)
   where
   whileM_
-    ∷ ∀ a
-    . Run MyEffects Boolean
-    → Run MyEffects a
-    → Run MyEffects Unit
-  whileM_ mb ma = flip tailRecM unit \a →
+    :: forall a
+     . Run MyEffects Boolean
+    -> Run MyEffects a
+    -> Run MyEffects Unit
+  whileM_ mb ma = flip tailRecM unit \a ->
     mb >>= if _ then ma $> Loop unit else pure $ Done unit
 
-chooseProgram ∷ ∀ r. Run (choose ∷ CHOOSE, effect ∷ EFFECT | r) Int
+chooseProgram :: forall r. Run (CHOOSE + EFFECT + r) Int
 chooseProgram = do
-  n ← oneOfMap pure [1, 2, 3, 4, 5]
+  n <- oneOfMap pure [1, 2, 3, 4, 5]
   liftEffect $ log $ show n
   pure (n + 1)
 
-tcoLoop ∷ ∀ r. Int -> (Int -> Run r Unit) -> Run r Unit
+tcoLoop :: forall r. Int -> (Int -> Run r Unit) -> Run r Unit
 tcoLoop n k = go n
   where
   go n'
@@ -106,36 +103,36 @@ tcoLoop n k = go n
         k n'
         go (n' - 1)
 
-stateTCO ∷ ∀ r. Run (state ∷ STATE Int | r) Unit
+stateTCO :: forall r. Run (STATE Int + r) Unit
 stateTCO = tcoLoop 100000 put
 
-writerTCO ∷ ∀ r. Run (writer ∷ WRITER (Additive Int) | r) Unit
+writerTCO :: forall r. Run (WRITER (Additive Int) + r) Unit
 writerTCO = tcoLoop 100000 \_ -> tell (Additive 1)
 
-readerTCO ∷ ∀ r. Run (reader ∷ READER Unit | r) Unit
+readerTCO :: forall r. Run (READER Unit + r) Unit
 readerTCO = tcoLoop 100000 (const ask)
 
-main ∷ Effect Unit
+main :: Effect Unit
 main = do
   program "42" # runState "" # runExcept # extract # logShow
   program "42" # runExcept # runState "" # extract # logShow
   program "12" # runState "" # runExcept # extract # logShow
 
-  res1 ← program2 # runState 0 # runBaseEffect
+  res1 <- program2 # runState 0 # runBaseEffect
   logShow res1
 
   let
     runSpeak = send # on _talk case _ of
-      Speak str a  → liftEffect (log str) $> a
-      Listen reply → pure $ reply "Gerald"
+      Speak str a  -> liftEffect (log str) $> a
+      Listen reply -> pure $ reply "Gerald"
 
   program3
     # run runSpeak
     # runBaseEffect
 
-  program4 "42" # runStateAt _st "" # runExceptAt _exc # extract # logShow
-  program4 "42" # runExceptAt _exc # runStateAt _st "" # extract # logShow
-  program4 "12" # runStateAt _st "" # runExceptAt _exc # extract # logShow
+  program4 "42" # runStateAt _state "" # runExceptAt _except # extract # logShow
+  program4 "42" # runExceptAt _except # runStateAt _state "" # extract # logShow
+  program4 "12" # runStateAt _state "" # runExceptAt _except # extract # logShow
 
   yesProgram
     # catch (liftEffect <<< log)
@@ -143,10 +140,10 @@ main = do
     # runBaseEffect
     # void
 
-  as ← chooseProgram
+  as <- chooseProgram
     # runChoose
     # runBaseEffect
-  logShow (as ∷ Array Int)
+  logShow (as :: Array Int)
 
   let
     tco1 = stateTCO # runState 0

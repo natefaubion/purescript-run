@@ -8,32 +8,31 @@ module Run.Internal
 
 import Prelude
 
-import Data.Functor.Variant (FProxy, SProxy(..))
-import Type.Data.Row (RProxy)
 import Type.Equality (class TypeEquals)
+import Type.Proxy (Proxy(..))
 import Unsafe.Coerce (unsafeCoerce)
 
 data Choose a
   = Empty
-  | Alt (Boolean → a)
+  | Alt (Boolean -> a)
 
-derive instance functorChoose ∷ Functor Choose
+derive instance functorChoose :: Functor Choose
 
-type CHOOSE = FProxy Choose
+type CHOOSE r = ( choose :: Choose | r )
 
-_choose ∷ SProxy "choose"
-_choose = SProxy
+_choose :: Proxy "choose"
+_choose = Proxy
 
 toRows
-  ∷ ∀ f r1 r2 a
-  . TypeEquals (RProxy r1) (RProxy r2)
-  ⇒ f r1 a
-  → f r2 a
+  :: forall f r1 r2 a
+  . TypeEquals (Proxy r1) (Proxy r2)
+  => f r1 a
+  -> f r2 a
 toRows = unsafeCoerce
 
 fromRows
-  ∷ ∀ f r1 r2 a
-  . TypeEquals (RProxy r1) (RProxy r2)
-  ⇒ f r2 a
-  → f r1 a
+  :: forall f r1 r2 a
+  . TypeEquals (Proxy r1) (Proxy r2)
+  => f r2 a
+  -> f r1 a
 fromRows = unsafeCoerce

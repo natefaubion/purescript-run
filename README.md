@@ -9,7 +9,7 @@ implementation for PureScript.
 ## Install
 
 ```
-bower install purescript-run
+spago install run
 ```
 
 ## Documentation
@@ -81,6 +81,7 @@ main = foldFree go program
     Listen reply -> do
       pure (reply "I am Groot")
 ```
+
 ```
 Hello, what is your name?
 Nice to meet you, I am Groot
@@ -170,35 +171,35 @@ PureScript. If we look at its big brother `VariantF` (found in
 `Functor`s and works like an extensible `Coproduct`.
 
 ```purescript
-type TALK = FProxy TalkF
+type TALK r = (talk :: TalkF | r)
 
-_talk = SProxy :: SProxy "talk"
+_talk = Proxy :: Proxy "talk"
 
-speak :: forall r. String -> Free (VariantF (talk :: TALK | r)) Unit
+speak :: forall r. String -> Free (VariantF (TALK + r)) Unit
 speak str = liftF (inj _talk (Speak str unit))
 
-listen :: forall r. Free (VariantF (talk :: TALK | r)) String
+listen :: forall r. Free (VariantF (TALK + r)) String
 listen = liftF (inj _talk (Listen identity))
 
 ---
 
-type DINNER = FProxy DinnerF
+type DINNER r = (dinner :: DinnerF | r)
 
-_dinner = SProxy :: SProxy "dinner"
+_dinner = Proxy :: Proxy "dinner"
 
-eat :: forall r. Food -> Free (VariantF (dinner :: DINNER | r)) IsThereMore
+eat :: forall r. Food -> Free (VariantF (DINNER + r)) IsThereMore
 eat food = liftF (inj _dinner (Eat food identity))
 
-checkPlease :: forall r. Free (VariantF (dinner :: DINNER | r)) Bill
+checkPlease :: forall r. Free (VariantF (DINNER + r)) Bill
 checkPlease = liftF (inj _dinner (CheckPlease identity))
 ```
 
 Now our DSLs can be used together without any extra lifting.
 
 ```purescript
-type LovelyEvening r = (dinner :: DINNER, talk :: TALK | r)
+type LovelyEvening r = (DINNER + TALK + r)
 
-dinnerTime :: forall r. Free (VariantF (LovelyEvening r)) Unit
+dinnerTime :: forall r. Free (VariantF (LovelyEvening + r)) Unit
 dinnerTime = do
   speak "I'm famished!"
   isThereMore <- eat Pizza
@@ -227,17 +228,17 @@ data TalkF a
   = Speak String a
   | Listen (String -> a)
 
-type TALK = FProxy TalkF
+type TALK r = (talk :: TalkF | r)
 
-_talk = SProxy :: SProxy "talk"
+_talk = Proxy :: Proxy "talk"
 
-speak :: forall r. String -> Run (talk :: TALK | r) Unit
+speak :: forall r. String -> Run (TALK + r) Unit
 speak str = Run.lift _talk (Speak str unit)
 
-listen :: forall r. Run (talk :: TALK | r) String
+listen :: forall r. Run (TALK + r) String
 listen = Run.lift _talk (Listen identity)
 
-program :: forall r. Run (talk :: TALK | r) Unit
+program :: forall r. Run (TALK + r) Unit
 program = do
   speak $ "Hello, what is your name?"
   name <- listen
@@ -278,19 +279,19 @@ so you might need more annotations (or eta expansion) than if you had used
 Let's try adding back in our other effect for a lovely evening:
 
 ```purescript
-type DINNER = FProxy DinnerF
+type DINNER r = (dinner :: DinnerF | r)
 
-_dinner :: SProxy :: SProxy "dinner"
+_dinner :: Proxy :: Proxy "dinner"
 
-eat :: forall r. Food -> Run (dinner :: DINNER | r) IsThereMore
+eat :: forall r. Food -> Run (DINNER + r) IsThereMore
 eat food = Run.lift _dinner (Eat food identity)
 
-checkPlease :: forall r. Run (dinner :: DINNER | r) Bill
+checkPlease :: forall r. Run (DINNER + r) Bill
 checkPlease = Run.lift _dinner (CheckPlease identity)
 
-type LovelyEvening r = (talk :: TALK, dinner :: DINNER | r)
+type LovelyEvening r = (TALK + DINNER + r)
 
-dinnerTime :: forall r. Run (LovelyEvening r) Unit
+dinnerTime :: forall r. Run (LovelyEvening + r) Unit
 dinnerTime = do
   speak "I'm famished!"
   isThereMore <- eat Pizza
@@ -309,7 +310,7 @@ all effects. Instead we can use `send` for unmatched cases.
 
 ```purescript
 -- This now interprets it back into `Run` but with the `EFFECT` effect.
-handleTalk :: forall r. TalkF ~> Run (effect :: EFFECT | r)
+handleTalk :: forall r. TalkF ~> Run (EFFECT + r)
 handleTalk = case _ of
   Speak str next -> do
     -- `liftEffect` lifts native `Effect` effects into `Run`.
@@ -320,11 +321,11 @@ handleTalk = case _ of
 
 runTalk
   :: forall r
-   . Run (effect :: EFFECT, talk :: TALK | r)
-  ~> Run (effect :: EFFECT | r)
+   . Run (EFFECT + TALK + r)
+  ~> Run (EFFECT + r)
 runTalk = interpret (on _talk handleTalk send)
 
-program2 :: forall r. Run (effect :: EFFECT, dinner :: DINNER | r) Unit
+program2 :: forall r. Run (EFFECT + DINNER + r) Unit
 program2 = dinnerTime # runTalk
 ```
 
@@ -356,12 +357,12 @@ handleDinner tally = case _ of
 
 -- We eliminate the `DINNER` effect altogether, yielding the result
 -- together with the final bill.
-runDinnerPure :: forall r a. Tally -> Run (dinner :: DINNER | r) a -> Run r (Tuple Bill a)
+runDinnerPure :: forall r a. Tally -> Run (DINNER + r) a -> Run r (Tuple Bill a)
 runDinnerPure = runAccumPure
   (\tally -> on _dinner (Loop <<< handleDinner tally) Done)
   (\tally a -> Tuple tally.bill a)
 
-program3 :: forall r. Run (effect :: EFFECT | r) (Tuple Bill Unit)
+program3 :: forall r. Run (EFFECT + r) (Tuple Bill Unit)
 program3 = program2 # runDinnerPure { stock: 10, bill: 0 }
 ```
 
@@ -389,11 +390,11 @@ data LogF a = Log String a
 
 derive instance functorLogF :: Functor LogF
 
-type LOG = FProxy LogF
+type LOG r = (log :: LogF | r)
 
-_log = SProxy :: SProxy "log"
+_log = Proxy :: Proxy "log"
 
-log :: forall r. String -> Run (log :: LOG | r) Unit
+log :: forall r. String -> Run (LOG + r) Unit
 log str = Run.lift _log (Log str unit)
 
 ---
@@ -402,16 +403,16 @@ data SleepF a = Sleep Int a
 
 derive instance functorSleepF :: Functor SleepF
 
-type SLEEP = FProxy SleepF
+type SLEEP r = (sleep :: SleepF | r)
 
-_sleep = SProxy :: SProxy "sleep"
+_sleep = Proxy :: Proxy "sleep"
 
-sleep :: forall r. Int -> Run (sleep :: SLEEP | r) Unit
+sleep :: forall r. Int -> Run (SLEEP + r) Unit
 sleep ms = Run.lift _sleep (Sleep ms unit)
 
 ---
 
-program :: forall r. Run (sleep :: SLEEP, log :: LOG | r) Unit
+program :: forall r. Run (SLEEP + LOG + r) Unit
 program = do
   log "I guess I'll wait..."
   sleep 3000
