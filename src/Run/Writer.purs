@@ -20,50 +20,52 @@ import Data.Either (Either(..))
 import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..))
 import Prim.Row as Row
-import Run (Run, SProxy(..), FProxy)
+import Run (Run)
 import Run as Run
+import Type.Proxy (Proxy(..))
+import Type.Row (type (+))
 
 data Writer w a = Writer w a
 
 derive instance functorWriter ∷ Functor (Writer w)
 
-type WRITER w = FProxy (Writer w)
+type WRITER w r = (writer ∷ Writer w | r)
 
-_writer ∷ SProxy "writer"
-_writer = SProxy
+_writer ∷ Proxy "writer"
+_writer = Proxy
 
-liftWriter ∷ ∀ w a r. Writer w a → Run (writer ∷ WRITER w | r) a
+liftWriter ∷ ∀ w a r. Writer w a → Run (WRITER w + r) a
 liftWriter = liftWriterAt _writer
 
 liftWriterAt ∷
-  ∀ w a r t s
+  ∀ proxy w a r t s
   . IsSymbol s
-  ⇒ Row.Cons s (WRITER w) t r
-  ⇒ SProxy s
+  ⇒ Row.Cons s (Writer w) t r
+  ⇒ proxy s
   → Writer w a
   → Run r a
 liftWriterAt = Run.lift
 
-tell ∷ ∀ w r. w → Run (writer ∷ WRITER w | r) Unit
+tell ∷ ∀ w r. w → Run (writer ∷ Writer w | r) Unit
 tell = tellAt _writer
 
 tellAt ∷
-  ∀ w r t s
+  ∀ proxy w r t s
   . IsSymbol s
-  ⇒ Row.Cons s (WRITER w) t r
-  ⇒ SProxy s
+  ⇒ Row.Cons s (Writer w) t r
+  ⇒ proxy s
   → w
   → Run r Unit
 tellAt sym w = liftWriterAt sym (Writer w unit)
 
-censor ∷ ∀ w a r. (w → w) → Run (writer ∷ WRITER w | r) a → Run (writer ∷ WRITER w | r) a
+censor ∷ ∀ w a r. (w → w) → Run (writer ∷ Writer w | r) a → Run (writer ∷ Writer w | r) a
 censor = censorAt _writer
 
 censorAt ∷
-  ∀ w a r t s
+  ∀ proxy w a r t s
   . IsSymbol s
-  ⇒ Row.Cons s (WRITER w) t r
-  ⇒ SProxy s
+  ⇒ Row.Cons s (Writer w) t r
+  ⇒ proxy s
   → (w → w)
   → Run r a
   → Run r a
@@ -80,14 +82,14 @@ censorAt sym = loop
     Right a →
       pure a
 
-foldWriter ∷ ∀ w b a r. (b → w → b) → b → Run (writer ∷ WRITER w | r) a → Run r (Tuple b a)
+foldWriter ∷ ∀ w b a r. (b → w → b) → b → Run (WRITER w + r) a → Run r (Tuple b a)
 foldWriter = foldWriterAt _writer
 
 foldWriterAt ∷
-  ∀ w b a r t s
+  ∀ proxy w b a r t s
   . IsSymbol s
-  ⇒ Row.Cons s (WRITER w) t r
-  ⇒ SProxy s
+  ⇒ Row.Cons s (Writer w) t r
+  ⇒ proxy s
   → (b → w → b)
   → b
   → Run r a
@@ -104,15 +106,15 @@ foldWriterAt sym = loop
     Right a →
       pure (Tuple w a)
 
-runWriter ∷ ∀ w a r. Monoid w ⇒ Run (writer ∷ WRITER w | r) a → Run r (Tuple w a)
+runWriter ∷ ∀ w a r. Monoid w ⇒ Run (WRITER w + r) a → Run r (Tuple w a)
 runWriter = runWriterAt _writer
 
 runWriterAt ∷
-  ∀ w a r t s
+  ∀ proxy w a r t s
   . IsSymbol s
   ⇒ Monoid w
-  ⇒ Row.Cons s (WRITER w) t r
-  ⇒ SProxy s
+  ⇒ Row.Cons s (Writer w) t r
+  ⇒ proxy s
   → Run r a
   → Run t (Tuple w a)
 runWriterAt sym = foldWriterAt sym (<>) mempty

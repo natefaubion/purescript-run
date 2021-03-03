@@ -26,85 +26,87 @@ import Data.Either (Either(..))
 import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..), fst, snd)
 import Prim.Row as Row
-import Run (Run, SProxy(..), FProxy)
+import Run (Run)
 import Run as Run
+import Type.Proxy (Proxy(..))
+import Type.Row (type (+))
 
 data State s a = State (s → s) (s → a)
 
 derive instance functorState ∷ Functor (State s)
 
-type STATE s = FProxy (State s)
+type STATE s r = (state :: State s | r)
 
-_state ∷ SProxy "state"
-_state = SProxy
+_state ∷ Proxy "state"
+_state = Proxy
 
-liftState ∷ ∀ s a r. State s a → Run (state ∷ STATE s | r) a
+liftState ∷ ∀ s a r. State s a → Run (STATE s + r) a
 liftState = liftStateAt _state
 
 liftStateAt ∷
-  ∀ q sym s a r
+  ∀ proxy q sym s a r
   . IsSymbol sym
-  ⇒ Row.Cons sym (STATE s) q r
-  ⇒ SProxy sym
+  ⇒ Row.Cons sym (State s) q r
+  ⇒ proxy sym
   → State s a
   → Run r a
 liftStateAt = Run.lift
 
-modify ∷ ∀ s r. (s → s) → Run (state ∷ STATE s | r) Unit
+modify ∷ ∀ s r. (s → s) → Run (STATE s + r) Unit
 modify = modifyAt _state
 
 modifyAt ∷
-  ∀ q sym s r
+  ∀ proxy q sym s r
   . IsSymbol sym
-  ⇒ Row.Cons sym (STATE s) q r
-  ⇒ SProxy sym
+  ⇒ Row.Cons sym (State s) q r
+  ⇒ proxy sym
   → (s → s)
   → Run r Unit
 modifyAt sym f = liftStateAt sym $ State f (const unit)
 
-put ∷ ∀ s r. s → Run (state ∷ STATE s | r) Unit
+put ∷ ∀ s r. s → Run (STATE s + r) Unit
 put = putAt _state
 
 putAt ∷
-  ∀ q sym s r
+  ∀ proxy q sym s r
   . IsSymbol sym
-  ⇒ Row.Cons sym (STATE s) q r
-  ⇒ SProxy sym
+  ⇒ Row.Cons sym (State s) q r
+  ⇒ proxy sym
   → s
   → Run r Unit
 putAt sym = modifyAt sym <<< const
 
-get ∷ ∀ s r. Run (state ∷ STATE s | r) s
+get ∷ ∀ s r. Run (STATE s + r) s
 get = getAt _state
 
 getAt ∷
-  ∀ q sym s r
+  ∀ proxy q sym s r
   . IsSymbol sym
-  ⇒ Row.Cons sym (STATE s) q r
-  ⇒ SProxy sym
+  ⇒ Row.Cons sym (State s) q r
+  ⇒ proxy sym
   → Run r s
 getAt sym = liftStateAt sym $ State identity identity
 
-gets ∷ ∀ s t r. (s → t) → Run (state ∷ STATE s | r) t
+gets ∷ ∀ s t r. (s → t) → Run (STATE s + r) t
 gets = getsAt _state
 
 getsAt ∷
-  ∀ q sym s t r
+  ∀ proxy q sym s t r
   . IsSymbol sym
-  ⇒ Row.Cons sym (STATE s) q r
-  ⇒ SProxy sym
+  ⇒ Row.Cons sym (State s) q r
+  ⇒ proxy sym
   → (s → t)
   → Run r t
 getsAt sym = flip map (getAt sym)
 
-runState ∷ ∀ s r a. s → Run (state ∷ STATE s | r) a → Run r (Tuple s a)
+runState ∷ ∀ s r a. s → Run (STATE s + r) a → Run r (Tuple s a)
 runState = runStateAt _state
 
 runStateAt ∷
-  ∀ q sym s r a
+  ∀ proxy q sym s r a
   . IsSymbol sym
-  ⇒ Row.Cons sym (STATE s) q r
-  ⇒ SProxy sym
+  ⇒ Row.Cons sym (State s) q r
+  ⇒ proxy sym
   → s
   → Run r a
   → Run q (Tuple s a)
@@ -121,27 +123,27 @@ runStateAt sym = loop
     Right a →
       pure (Tuple s a)
 
-evalState ∷ ∀ s r a. s → Run (state ∷ STATE s | r) a → Run r a
+evalState ∷ ∀ s r a. s → Run (STATE s + r) a → Run r a
 evalState = evalStateAt _state
 
 evalStateAt ∷
-  ∀ q sym s r a
+  ∀ proxy q sym s r a
   . IsSymbol sym
-  ⇒ Row.Cons sym (STATE s) q r
-  ⇒ SProxy sym
+  ⇒ Row.Cons sym (State s) q r
+  ⇒ proxy sym
   → s
   → Run r a
   → Run q a
 evalStateAt sym s = map snd <<< runStateAt sym s
 
-execState ∷ ∀ s r a. s → Run (state ∷ STATE s | r) a → Run r s
+execState ∷ ∀ s r a. s → Run (STATE s + r) a → Run r s
 execState = execStateAt _state
 
 execStateAt ∷
-  ∀ q sym s r a
+  ∀ proxy q sym s r a
   . IsSymbol sym
-  ⇒ Row.Cons sym (STATE s) q r
-  ⇒ SProxy sym
+  ⇒ Row.Cons sym (State s) q r
+  ⇒ proxy sym
   → s
   → Run r a
   → Run q s

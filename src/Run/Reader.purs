@@ -5,7 +5,9 @@ module Run.Reader
   , liftReader
   , liftReaderAt
   , ask
+  , asks
   , askAt
+  , asksAt
   , local
   , localAt
   , runReader
@@ -17,61 +19,63 @@ import Prelude
 import Data.Either (Either(..))
 import Data.Symbol (class IsSymbol)
 import Prim.Row as Row
-import Run (Run, SProxy(..), FProxy)
+import Run (Run)
 import Run as Run
+import Type.Proxy (Proxy(..))
+import Type.Row (type (+))
 
 newtype Reader e a = Reader (e → a)
 
 derive newtype instance functorReader ∷ Functor (Reader e)
 
-type READER e = FProxy (Reader e)
+type READER e r = (reader :: Reader e | r)
 
-_reader ∷ SProxy "reader"
-_reader = SProxy
+_reader ∷ Proxy "reader"
+_reader = Proxy
 
-liftReader ∷ ∀ e a r. Reader e a → Run (reader ∷ READER e | r) a
+liftReader ∷ ∀ e a r. Reader e a → Run (READER e + r) a
 liftReader = liftReaderAt _reader
 
 liftReaderAt ∷
-  ∀ t e a r s
+  ∀ proxy t e a r s
   . IsSymbol s
-  ⇒ Row.Cons s (READER e) t r
-  ⇒ SProxy s
+  ⇒ Row.Cons s (Reader e) t r
+  ⇒ proxy s
   → Reader e a
   → Run r a
 liftReaderAt = Run.lift
 
-ask ∷ ∀ e r. Run (reader ∷ READER e | r) e
+ask ∷ ∀ e r. Run (READER e + r) e
 ask = askAt _reader
 
 askAt ∷
-  ∀ t e r s
+  ∀ proxy t e r s
   . IsSymbol s
-  ⇒ Row.Cons s (READER e) t r
-  ⇒ SProxy s
+  ⇒ Row.Cons s (Reader e) t r
+  ⇒ proxy s
   → Run r e
 askAt sym = asksAt sym identity
 
-asks ∷ ∀ e r a. (e → a) → Run (reader ∷ READER e | r) a
+asks ∷ ∀ e r a. (e → a) → Run (READER e + r) a
 asks = asksAt _reader
 
 asksAt ∷
-  ∀ t e r s a
+  ∀ proxy t e r s a
   . IsSymbol s
-  ⇒ Row.Cons s (READER e) t r
-  ⇒ SProxy s
+  ⇒ Row.Cons s (Reader e) t r
+  ⇒ proxy s
   → (e → a)
   → Run r a
 asksAt sym f = liftReaderAt sym (Reader f)
 
-local ∷ ∀ e a r. (e → e) → Run (reader ∷ READER e | r) a → Run (reader ∷ READER e | r) a
+local ∷ ∀ e a r. (e → e) → Run (READER e + r) a → Run (READER e + r) a
 local = localAt _reader
 
 localAt ∷
-  ∀ t e a r s
+  ∀ proxy t e a r s
   . IsSymbol s
-  ⇒ Row.Cons s (READER e) t r
-  ⇒ SProxy s
+  ⇒ Row.Cons s (Reader e) t r
+  ⇒ proxy s
   → (e → e)
   → Run r a
   → Run r a
@@ -89,14 +93,14 @@ localAt sym = \f r → map f (askAt sym) >>= flip runLocal r
       Right a →
         pure a
 
-runReader ∷ ∀ e a r. e → Run (reader ∷ READER e | r) a → Run r a
+runReader ∷ ∀ e a r. e → Run (READER e + r) a → Run r a
 runReader = runReaderAt _reader
 
 runReaderAt ∷
-  ∀ t e a r s
+  ∀ proxy t e a r s
   . IsSymbol s
-  ⇒ Row.Cons s (READER e) t r
-  ⇒ SProxy s
+  ⇒ Row.Cons s (Reader e) t r
+  ⇒ proxy s
   → e
   → Run r a
   → Run t a

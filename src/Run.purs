@@ -36,10 +36,9 @@ import Control.Monad.Rec.Class (Step(..)) as Exports
 import Control.Monad.Rec.Class (class MonadRec, Step(..), tailRecM)
 import Control.Plus (class Plus)
 import Data.Either (Either(..))
-import Data.Functor.Variant (FProxy(..), VariantF, case_, default, inj, match, on, onMatch)
+import Data.Functor.Variant (VariantF, case_, default, inj, match, on, onMatch)
 import Data.Newtype (class Newtype, unwrap)
-import Data.Symbol (SProxy(..)) as Exports
-import Data.Symbol (SProxy(..), class IsSymbol)
+import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..), curry, uncurry)
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -48,9 +47,10 @@ import Effect.Class (class MonadEffect)
 import Effect.Class as Effect
 import Partial.Unsafe (unsafeCrashWith)
 import Prim.Row as Row
-import Run.Internal (_choose, CHOOSE, Choose(..), toRows, fromRows)
-import Type.Data.Row (RProxy)
+import Run.Internal (Choose(..), CHOOSE, _choose, fromRows, toRows)
 import Type.Equality (class TypeEquals)
+import Type.Proxy (Proxy(..))
+import Type.Row (type (+))
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | An extensible effect Monad, indexed by a set of effect functors. Effects
@@ -91,11 +91,11 @@ import Unsafe.Coerce (unsafeCoerce)
 newtype Run r a = Run (Free (VariantF r) a)
 
 derive instance newtypeRun ∷ Newtype (Run r a) _
-derive newtype instance functorRun :: Functor (Run r)
-derive newtype instance applyRun :: Apply (Run r)
-derive newtype instance applicativeRun :: Applicative (Run r)
-derive newtype instance bindRun :: Bind (Run r)
-derive newtype instance monadRun :: Monad (Run r)
+derive newtype instance functorRun ∷ Functor (Run r)
+derive newtype instance applyRun ∷ Apply (Run r)
+derive newtype instance applicativeRun ∷ Applicative (Run r)
+derive newtype instance bindRun ∷ Bind (Run r)
+derive newtype instance monadRun ∷ Monad (Run r)
 
 -- | This instance is provided for compatibility, but is otherwise
 -- | unnecessary. You can use monadic recursion with `Run`, deferring the
@@ -110,13 +110,13 @@ instance monadRecRun ∷ MonadRec (Run r) where
         Loop n → loop n
 
 -- | Lifts an effect functor into the `Run` Monad according to the provided
--- | `SProxy` slot.
+-- | `Proxy` slot.
 lift
-  ∷ ∀ sym r1 r2 f a
-  . Row.Cons sym (FProxy f) r1 r2
+  ∷ ∀ proxy sym r1 r2 f a
+  . Row.Cons sym f r1 r2
   ⇒ IsSymbol sym
   ⇒ Functor f
-  ⇒ SProxy sym
+  ⇒ proxy sym
   → f a
   → Run r2 a
 lift p = Run <<< liftF <<< inj p
@@ -151,13 +151,13 @@ send = Run <<< liftF
 -- | occur.
 -- |
 -- | ```purescript
--- | type LessRows = (foo :: FOO)
--- | type MoreRows = (foo :: FOO, bar :: BAR, baz :: BAZ)
+-- | type LessRows = (foo ∷ FOO)
+-- | type MoreRows = (foo ∷ FOO, bar ∷ BAR, baz ∷ BAZ)
 -- |
--- | foo :: Run LessRows Unit
+-- | foo ∷ Run LessRows Unit
 -- | foo = foo
 -- |
--- | foo' :: Run MoreRows Unit
+-- | foo' ∷ Run MoreRows Unit
 -- | foo' = expand foo
 -- | ```
 expand
@@ -309,46 +309,46 @@ runAccumPure k1 k2 = loop
       pure (k2 s a)
 
 -- | Type synonym for using `Effect` as an effect.
-type EFFECT = FProxy Effect
+type EFFECT r = (effect ∷ Effect | r)
 
 -- Lift an `Effect` effect into the `Run` Monad via the `effect` label.
-liftEffect ∷ ∀ r. Effect ~> Run (effect ∷ EFFECT | r)
-liftEffect = lift (SProxy ∷ SProxy "effect")
+liftEffect ∷ ∀ r. Effect ~> Run (EFFECT + r)
+liftEffect = lift (Proxy ∷ Proxy "effect")
 
 -- | Runs a base `Effect` effect.
-runBaseEffect ∷ Run (effect ∷ EFFECT) ~> Effect
+runBaseEffect ∷ Run (EFFECT + ()) ~> Effect
 runBaseEffect = runRec $ match { effect: \a → a }
 
 -- | Type synonym for using `Aff` as an effect.
-type AFF = FProxy Aff
+type AFF r = (aff ∷ Aff | r)
 
 -- | Lift an `Aff` effect into the `Run` Monad via the `aff` label.
-liftAff ∷ ∀ r. Aff ~> Run (aff ∷ AFF | r)
-liftAff = lift (SProxy ∷ SProxy "aff")
+liftAff ∷ ∀ r. Aff ~> Run (AFF + r)
+liftAff = lift (Proxy ∷ Proxy "aff")
 
 -- | Runs a base `Aff` effect.
-runBaseAff ∷ Run (aff ∷ AFF) ~> Aff
+runBaseAff ∷ Run (AFF + ()) ~> Aff
 runBaseAff = run $ match { aff: \a → a }
 
 -- | Runs base `Aff` and `Effect` together as one effect.
-runBaseAff' ∷ Run (aff ∷ AFF, effect ∷ EFFECT) ~> Aff
+runBaseAff' ∷ Run (AFF + EFFECT + ()) ~> Aff
 runBaseAff' = run $ match { aff: \a → a, effect: \a → Effect.liftEffect a }
 
-instance runMonadEffect ∷ (TypeEquals (RProxy r1) (RProxy (effect ∷ EFFECT | r2))) ⇒ MonadEffect (Run r1) where
+instance runMonadEffect ∷ (TypeEquals (Proxy r1) (Proxy (EFFECT r2))) ⇒ MonadEffect (Run r1) where
   liftEffect = fromRows <<< liftEffect
 
 -- | This will insert an `EFFECT` effect because `MonadAff` entails `MonadEffect`.
 -- | If you don't want this, use `Run.liftAff` rather than `Control.Monad.Aff.Class.liftAff`.
-instance runMonadAff ∷ (TypeEquals (RProxy r1) (RProxy (aff ∷ AFF, effect ∷ EFFECT | r2))) ⇒ MonadAff (Run r1) where
+instance runMonadAff ∷ (TypeEquals (Proxy r1) (Proxy (AFF + EFFECT + r2))) ⇒ MonadAff (Run r1) where
   liftAff = fromRows <<< liftAff
 
-liftChoose ∷ ∀ r a. Choose a → Run (choose ∷ CHOOSE | r) a
+liftChoose ∷ ∀ r a. Choose a → Run (CHOOSE + r) a
 liftChoose = lift _choose
 
-instance runAlt ∷ (TypeEquals (RProxy r1) (RProxy (choose ∷ CHOOSE | r2))) ⇒ Alt (Run r1) where
+instance runAlt ∷ (TypeEquals (Proxy r1) (Proxy (CHOOSE + r2))) ⇒ Alt (Run r1) where
   alt a b = fromRows $ liftChoose (Alt identity) >>= if _ then toRows a else toRows b
 
-instance runPlus ∷ (TypeEquals (RProxy r1) (RProxy (choose ∷ CHOOSE | r2))) ⇒ Plus (Run r1) where
+instance runPlus ∷ (TypeEquals (Proxy r1) (Proxy (CHOOSE + r2))) ⇒ Plus (Run r1) where
   empty = fromRows $ liftChoose Empty
 
-instance runAlternative ∷ (TypeEquals (RProxy r1) (RProxy (choose ∷ CHOOSE | r2))) ⇒ Alternative (Run r1)
+instance runAlternative ∷ (TypeEquals (Proxy r1) (Proxy (CHOOSE + r2))) ⇒ Alternative (Run r1)

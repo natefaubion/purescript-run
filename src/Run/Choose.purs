@@ -8,22 +8,23 @@ module Run.Choose
 
 import Prelude
 
-import Control.Alternative (class Alternative, alt, empty )
+import Control.Alternative (class Alternative, alt, empty)
 import Data.Either (Either(..))
 import Run (Run)
 import Run as Run
 import Run.Internal (Choose(..), CHOOSE, _choose)
+import Type.Row (type (+))
 
-liftChoose ∷ ∀ r a. Choose a → Run (choose ∷ CHOOSE | r) a
+liftChoose ∷ ∀ r a. Choose a → Run (CHOOSE + r) a
 liftChoose = Run.lift _choose
 
-cempty ∷ ∀ r a. Run (choose ∷ CHOOSE | r) a
+cempty ∷ ∀ r a. Run (CHOOSE + r) a
 cempty = empty
 
-calt ∷ ∀ r a. Run (choose ∷ CHOOSE | r) a → Run (choose ∷ CHOOSE | r) a → Run (choose ∷ CHOOSE | r) a
+calt ∷ ∀ r a. Run (CHOOSE + r) a → Run (CHOOSE + r) a → Run (CHOOSE + r) a
 calt = alt
 
-runChoose ∷ ∀ f a r. Alternative f ⇒ Run (choose ∷ CHOOSE | r) a → Run r (f a)
+runChoose ∷ ∀ f a r. Alternative f ⇒ Run (CHOOSE + r) a → Run r (f a)
 runChoose = loop
   where
   handle = Run.on _choose Left Right

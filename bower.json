@@ -35,7 +35,8 @@
     "purescript-unsafe-coerce": "^5.0.0",
     "purescript-variant": "^7.0.1",
     "purescript-profunctor": "^5.0.0",
-    "purescript-effect": "^3.0.0"
+    "purescript-effect": "^3.0.0",
+    "purescript-typelevel-prelude": "^6.0.0"
   },
   "devDependencies": {
     "purescript-control": "^5.0.0",
