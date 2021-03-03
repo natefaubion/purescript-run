@@ -31,120 +31,120 @@ import Run as Run
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
-data State s a = State (s → s) (s → a)
+data State s a = State (s -> s) (s -> a)
 
-derive instance functorState ∷ Functor (State s)
+derive instance functorState :: Functor (State s)
 
 type STATE s r = (state :: State s | r)
 
-_state ∷ Proxy "state"
+_state :: Proxy "state"
 _state = Proxy
 
-liftState ∷ ∀ s a r. State s a → Run (STATE s + r) a
+liftState :: forall s a r. State s a -> Run (STATE s + r) a
 liftState = liftStateAt _state
 
-liftStateAt ∷
-  ∀ proxy q sym s a r
+liftStateAt ::
+  forall proxy q sym s a r
   . IsSymbol sym
-  ⇒ Row.Cons sym (State s) q r
-  ⇒ proxy sym
-  → State s a
-  → Run r a
+  => Row.Cons sym (State s) q r
+  => proxy sym
+  -> State s a
+  -> Run r a
 liftStateAt = Run.lift
 
-modify ∷ ∀ s r. (s → s) → Run (STATE s + r) Unit
+modify :: forall s r. (s -> s) -> Run (STATE s + r) Unit
 modify = modifyAt _state
 
-modifyAt ∷
-  ∀ proxy q sym s r
+modifyAt ::
+  forall proxy q sym s r
   . IsSymbol sym
-  ⇒ Row.Cons sym (State s) q r
-  ⇒ proxy sym
-  → (s → s)
-  → Run r Unit
+  => Row.Cons sym (State s) q r
+  => proxy sym
+  -> (s -> s)
+  -> Run r Unit
 modifyAt sym f = liftStateAt sym $ State f (const unit)
 
-put ∷ ∀ s r. s → Run (STATE s + r) Unit
+put :: forall s r. s -> Run (STATE s + r) Unit
 put = putAt _state
 
-putAt ∷
-  ∀ proxy q sym s r
+putAt ::
+  forall proxy q sym s r
   . IsSymbol sym
-  ⇒ Row.Cons sym (State s) q r
-  ⇒ proxy sym
-  → s
-  → Run r Unit
+  => Row.Cons sym (State s) q r
+  => proxy sym
+  -> s
+  -> Run r Unit
 putAt sym = modifyAt sym <<< const
 
-get ∷ ∀ s r. Run (STATE s + r) s
+get :: forall s r. Run (STATE s + r) s
 get = getAt _state
 
-getAt ∷
-  ∀ proxy q sym s r
+getAt ::
+  forall proxy q sym s r
   . IsSymbol sym
-  ⇒ Row.Cons sym (State s) q r
-  ⇒ proxy sym
-  → Run r s
+  => Row.Cons sym (State s) q r
+  => proxy sym
+  -> Run r s
 getAt sym = liftStateAt sym $ State identity identity
 
-gets ∷ ∀ s t r. (s → t) → Run (STATE s + r) t
+gets :: forall s t r. (s -> t) -> Run (STATE s + r) t
 gets = getsAt _state
 
-getsAt ∷
-  ∀ proxy q sym s t r
+getsAt ::
+  forall proxy q sym s t r
   . IsSymbol sym
-  ⇒ Row.Cons sym (State s) q r
-  ⇒ proxy sym
-  → (s → t)
-  → Run r t
+  => Row.Cons sym (State s) q r
+  => proxy sym
+  -> (s -> t)
+  -> Run r t
 getsAt sym = flip map (getAt sym)
 
-runState ∷ ∀ s r a. s → Run (STATE s + r) a → Run r (Tuple s a)
+runState :: forall s r a. s -> Run (STATE s + r) a -> Run r (Tuple s a)
 runState = runStateAt _state
 
-runStateAt ∷
-  ∀ proxy q sym s r a
+runStateAt ::
+  forall proxy q sym s r a
   . IsSymbol sym
-  ⇒ Row.Cons sym (State s) q r
-  ⇒ proxy sym
-  → s
-  → Run r a
-  → Run q (Tuple s a)
+  => Row.Cons sym (State s) q r
+  => proxy sym
+  -> s
+  -> Run r a
+  -> Run q (Tuple s a)
 runStateAt sym = loop
   where
   handle = Run.on sym Left Right
   loop s r = case Run.peel r of
-    Left a → case handle a of
-      Left (State t k) →
+    Left a -> case handle a of
+      Left (State t k) ->
         let s' = t s
         in loop s' (k s')
-      Right a' →
+      Right a' ->
         Run.send a' >>= runStateAt sym s
-    Right a →
+    Right a ->
       pure (Tuple s a)
 
-evalState ∷ ∀ s r a. s → Run (STATE s + r) a → Run r a
+evalState :: forall s r a. s -> Run (STATE s + r) a -> Run r a
 evalState = evalStateAt _state
 
-evalStateAt ∷
-  ∀ proxy q sym s r a
+evalStateAt ::
+  forall proxy q sym s r a
   . IsSymbol sym
-  ⇒ Row.Cons sym (State s) q r
-  ⇒ proxy sym
-  → s
-  → Run r a
-  → Run q a
+  => Row.Cons sym (State s) q r
+  => proxy sym
+  -> s
+  -> Run r a
+  -> Run q a
 evalStateAt sym s = map snd <<< runStateAt sym s
 
-execState ∷ ∀ s r a. s → Run (STATE s + r) a → Run r s
+execState :: forall s r a. s -> Run (STATE s + r) a -> Run r s
 execState = execStateAt _state
 
-execStateAt ∷
-  ∀ proxy q sym s r a
+execStateAt ::
+  forall proxy q sym s r a
   . IsSymbol sym
-  ⇒ Row.Cons sym (State s) q r
-  ⇒ proxy sym
-  → s
-  → Run r a
-  → Run q s
+  => Row.Cons sym (State s) q r
+  => proxy sym
+  -> s
+  -> Run r a
+  -> Run q s
 execStateAt sym s = map fst <<< runStateAt sym s

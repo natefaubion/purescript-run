@@ -37,7 +37,7 @@ import Type.Row (type (+))
 newtype Except :: forall k. Type -> k -> Type
 newtype Except e a = Except e
 
-derive instance functorExcept ∷ Functor (Except e)
+derive instance functorExcept :: Functor (Except e)
 
 type EXCEPT :: forall k. Type -> Row (k -> Type) -> Row (k -> Type)
 type EXCEPT e r = (except :: Except e | r)
@@ -48,134 +48,134 @@ type Fail = Except Unit
 type FAIL :: forall k. Row (k -> Type) -> Row (k -> Type)
 type FAIL r = EXCEPT Unit r
 
-_except ∷ Proxy "except"
+_except :: Proxy "except"
 _except = Proxy
 
-liftExcept ∷ ∀ e a r. Except e a → Run (EXCEPT e + r) a
+liftExcept :: forall e a r. Except e a -> Run (EXCEPT e + r) a
 liftExcept = liftExceptAt _except
 
 liftExceptAt
-  ∷ ∀ proxy t e a r s
+  :: forall proxy t e a r s
   . IsSymbol s
-  ⇒ Row.Cons s (Except e) t r
-  ⇒ proxy s
-  → Except e a
-  → Run r a
+  => Row.Cons s (Except e) t r
+  => proxy s
+  -> Except e a
+  -> Run r a
 liftExceptAt = Run.lift
 
-throw ∷ ∀ e a r. e → Run (EXCEPT e + r) a
+throw :: forall e a r. e -> Run (EXCEPT e + r) a
 throw = throwAt _except
 
 throwAt
-  ∷ ∀ proxy t e a r s
+  :: forall proxy t e a r s
   . IsSymbol s
-  ⇒ Row.Cons s (Except e) t r
-  ⇒ proxy s
-  → e
-  → Run r a
+  => Row.Cons s (Except e) t r
+  => proxy s
+  -> e
+  -> Run r a
 throwAt sym = liftExceptAt sym <<< Except
 
-fail ∷ ∀ a r. Run (FAIL + r) a
+fail :: forall a r. Run (FAIL + r) a
 fail = failAt _except
 
-failAt ∷
-  ∀ proxy t a r s
+failAt ::
+  forall proxy t a r s
   . IsSymbol s
-  ⇒ Row.Cons s Fail t r
-  ⇒ proxy s
-  → Run r a
+  => Row.Cons s Fail t r
+  => proxy s
+  -> Run r a
 failAt sym = throwAt sym unit
 
-rethrow ∷ ∀ e a r. Either e a → Run (EXCEPT e + r) a
+rethrow :: forall e a r. Either e a -> Run (EXCEPT e + r) a
 rethrow = rethrowAt _except
 
-rethrowAt ∷
-  ∀ proxy t e a r s
+rethrowAt ::
+  forall proxy t e a r s
   . IsSymbol s
-  ⇒ Row.Cons s (Except e) t r
-  ⇒ proxy s
-  → Either e a
-  → Run r a
+  => Row.Cons s (Except e) t r
+  => proxy s
+  -> Either e a
+  -> Run r a
 rethrowAt sym = either (throwAt sym) pure
 
-note ∷ ∀ e a r. e → Maybe a → Run (EXCEPT e + r) a
+note :: forall e a r. e -> Maybe a -> Run (EXCEPT e + r) a
 note = noteAt _except
 
-noteAt ∷
-  ∀ proxy t e a r s
+noteAt ::
+  forall proxy t e a r s
   . IsSymbol s
-  ⇒ Row.Cons s (Except e) t r
-  ⇒ proxy s
-  → e
-  → Maybe a
-  → Run r a
-noteAt sym e = maybe' (\_ → throwAt sym e) pure
+  => Row.Cons s (Except e) t r
+  => proxy s
+  -> e
+  -> Maybe a
+  -> Run r a
+noteAt sym e = maybe' (\_ -> throwAt sym e) pure
 
-fromJust ∷ ∀ a r. Maybe a → Run (FAIL + r) a
+fromJust :: forall a r. Maybe a -> Run (FAIL + r) a
 fromJust = fromJustAt _except
 
-fromJustAt ∷
-  ∀ proxy t a r s
+fromJustAt ::
+  forall proxy t a r s
   . IsSymbol s
-  ⇒ Row.Cons s Fail t r
-  ⇒ proxy s
-  → Maybe a
-  → Run r a
+  => Row.Cons s Fail t r
+  => proxy s
+  -> Maybe a
+  -> Run r a
 fromJustAt sym = noteAt sym unit
 
-catch ∷ ∀ e a r. (e → Run r a) → Run (EXCEPT e + r) a → Run r a
+catch :: forall e a r. (e -> Run r a) -> Run (EXCEPT e + r) a -> Run r a
 catch = catchAt _except
 
-catchAt ∷
-  ∀ proxy t e a r s
+catchAt ::
+  forall proxy t e a r s
   . IsSymbol s
-  ⇒ Row.Cons s (Except e) t r
-  ⇒ proxy s
-  → (e → Run t a)
-  → Run r a
-  → Run t a
+  => Row.Cons s (Except e) t r
+  => proxy s
+  -> (e -> Run t a)
+  -> Run r a
+  -> Run t a
 catchAt sym = loop
   where
   handle = Run.on sym Left Right
   loop k r = case Run.peel r of
-    Left a → case handle a of
-      Left (Except e) →
+    Left a -> case handle a of
+      Left (Except e) ->
         k e
-      Right a' →
+      Right a' ->
         Run.send a' >>= loop k
-    Right a →
+    Right a ->
       pure a
 
-runExcept ∷ ∀ e a r. Run (EXCEPT e + r) a → Run r (Either e a)
+runExcept :: forall e a r. Run (EXCEPT e + r) a -> Run r (Either e a)
 runExcept = runExceptAt _except
 
-runExceptAt ∷
-  ∀ proxy t e a r s
+runExceptAt ::
+  forall proxy t e a r s
   . IsSymbol s
-  ⇒ Row.Cons s (Except e) t r
-  ⇒ proxy s
-  → Run r a
-  → Run t (Either e a)
+  => Row.Cons s (Except e) t r
+  => proxy s
+  -> Run r a
+  -> Run t (Either e a)
 runExceptAt sym = loop
   where
   handle = Run.on sym Left Right
   loop r = case Run.peel r of
-    Left a → case handle a of
-      Left (Except e) →
+    Left a -> case handle a of
+      Left (Except e) ->
         pure (Left e)
-      Right a' →
+      Right a' ->
         Run.send a' >>= loop
-    Right a →
+    Right a ->
       pure (Right a)
 
-runFail ∷ ∀ a r. Run (FAIL + r) a → Run r (Maybe a)
+runFail :: forall a r. Run (FAIL + r) a -> Run r (Maybe a)
 runFail = runFailAt _except
 
-runFailAt ∷
-  ∀ proxy t a r s
+runFailAt ::
+  forall proxy t a r s
   . IsSymbol s
-  ⇒ Row.Cons s Fail t r
-  ⇒ proxy s
-  → Run r a
-  → Run t (Maybe a)
+  => Row.Cons s Fail t r
+  => proxy s
+  -> Run r a
+  -> Run t (Maybe a)
 runFailAt sym = map (either (const Nothing) Just) <<< runExceptAt sym

@@ -15,28 +15,28 @@ import Run as Run
 import Run.Internal (Choose(..), CHOOSE, _choose)
 import Type.Row (type (+))
 
-liftChoose ∷ ∀ r a. Choose a → Run (CHOOSE + r) a
+liftChoose :: forall r a. Choose a -> Run (CHOOSE + r) a
 liftChoose = Run.lift _choose
 
-cempty ∷ ∀ r a. Run (CHOOSE + r) a
+cempty :: forall r a. Run (CHOOSE + r) a
 cempty = empty
 
-calt ∷ ∀ r a. Run (CHOOSE + r) a → Run (CHOOSE + r) a → Run (CHOOSE + r) a
+calt :: forall r a. Run (CHOOSE + r) a -> Run (CHOOSE + r) a -> Run (CHOOSE + r) a
 calt = alt
 
-runChoose ∷ ∀ f a r. Alternative f ⇒ Run (CHOOSE + r) a → Run r (f a)
+runChoose :: forall f a r. Alternative f => Run (CHOOSE + r) a -> Run r (f a)
 runChoose = loop
   where
   handle = Run.on _choose Left Right
   loop r = case Run.peel r of
-    Left a → case handle a of
-      Left a' → case a' of
-        Empty → pure empty
-        Alt k → do
+    Left a -> case handle a of
+      Left a' -> case a' of
+        Empty -> pure empty
+        Alt k -> do
           x ← loop (k true)
           y ← loop (k false)
           pure (alt x y)
-      Right a' →
+      Right a' ->
         Run.send a' >>= loop
-    Right a →
+    Right a ->
         pure (pure a)
