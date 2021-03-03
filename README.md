@@ -9,7 +9,7 @@ implementation for PureScript.
 ## Install
 
 ```
-bower install purescript-run
+spago install run
 ```
 
 ## Documentation
@@ -81,6 +81,7 @@ main = foldFree go program
     Listen reply -> do
       pure (reply "I am Groot")
 ```
+
 ```
 Hello, what is your name?
 Nice to meet you, I am Groot
