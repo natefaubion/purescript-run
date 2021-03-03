@@ -58,11 +58,13 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | effect Monad.
 -- |
 -- | An example using `State` and `Except`:
+-- |
 -- | ```purescript
 -- | type MyEffects =
--- |   ( state :: STATE Int
--- |   , except :: EXCEPT String
--- |   , effect :: EFFECT
+-- |   ( STATE Int
+-- |   + EXCEPT String
+-- |   + EFFECT
+-- |   + ()
 -- |   )
 -- |
 -- | yesProgram :: Run MyEffects Unit
@@ -113,7 +115,7 @@ instance monadRecRun :: MonadRec (Run r) where
 -- | `Proxy` slot.
 lift
   :: forall proxy sym r1 r2 f a
-  . Row.Cons sym f r1 r2
+   . Row.Cons sym f r1 r2
   => IsSymbol sym
   => Functor f
   => proxy sym
@@ -125,14 +127,14 @@ lift p = Run <<< liftF <<< inj p
 -- | instructions.
 peel
   :: forall a r
-  . Run r a
+   . Run r a
   -> Either (VariantF r (Run r a)) a
 peel = resume Left Right
 
 -- | Eliminator for the `Run` data type.
 resume
   :: forall a b r
-  . (VariantF r (Run r a) -> b)
+   . (VariantF r (Run r a) -> b)
   -> (a -> b)
   -> Run r a
   -> b
@@ -141,7 +143,7 @@ resume k1 k2 = resume' (\x f -> k1 (Run <<< f <$> x)) k2 <<< unwrap
 -- | Enqueues an instruction in the `Run` Monad.
 send
   :: forall a r
-  . VariantF r a
+   . VariantF r a
   -> Run r a
 send = Run <<< liftF
 
@@ -151,8 +153,8 @@ send = Run <<< liftF
 -- | occur.
 -- |
 -- | ```purescript
--- | type LessRows = (foo :: FOO)
--- | type MoreRows = (foo :: FOO, bar :: BAR, baz :: BAZ)
+-- | type LessRows = (foo :: Foo)
+-- | type MoreRows = (foo :: Foo, bar :: Bar, baz :: Baz)
 -- |
 -- | foo :: Run LessRows Unit
 -- | foo = foo
@@ -162,7 +164,7 @@ send = Run <<< liftF
 -- | ```
 expand
   :: forall r1 r2 rx a
-  . Row.Union r1 rx r2
+   . Row.Union r1 rx r2
   => Run r1 a
   -> Run r2 a
 expand = unsafeCoerce
@@ -175,7 +177,7 @@ extract = unwrap >>> runFree \_ -> unsafeCrashWith "Run: the impossible happened
 -- | stack safety under Monadic recursion.
 interpret
   :: forall m a r
-  . Monad m
+   . Monad m
   => (VariantF r ~> m)
   -> Run r a
   -> m a
@@ -185,7 +187,7 @@ interpret = run
 -- | letting you intercept the rest of the program.
 run
   :: forall m a r
-  . Monad m
+   . Monad m
   => (VariantF r (Run r a) -> m (Run r a))
   -> Run r a
   -> m a
@@ -198,7 +200,7 @@ run k = loop
 -- | stack safety.
 interpretRec
   :: forall m a r
-  . MonadRec m
+   . MonadRec m
   => (VariantF r ~> m)
   -> Run r a
   -> m a
@@ -208,7 +210,7 @@ interpretRec = runRec
 -- | signature, letting you intercept the rest of the program.
 runRec
   :: forall m a r
-  . MonadRec m
+   . MonadRec m
   => (VariantF r (Run r a) -> m (Run r a))
   -> Run r a
   -> m a
@@ -221,7 +223,7 @@ runRec k = runFreeM (coerceM k) <<< unwrap
 -- | Extracts the value from a program via some `m` using continuation passing.
 runCont
   :: forall m a b r
-  . (VariantF r (m b) -> m b)
+   . (VariantF r (m b) -> m b)
   -> (a -> m b)
   -> Run r a
   -> m b
@@ -234,7 +236,7 @@ runCont k1 k2 = loop
 -- | accumulator. This assumes stack safety under Monadic recursion.
 runAccum
   :: forall m r s a
-  . Monad m
+   . Monad m
   => (s -> VariantF r (Run r a) -> m (Tuple s (Run r a)))
   -> s
   -> Run r a
@@ -248,7 +250,7 @@ runAccum k = loop
 -- | accumulator.
 runAccumRec
   :: forall m r s a
-  . MonadRec m
+   . MonadRec m
   => (s -> VariantF r (Run r a) -> m (Tuple s (Run r a)))
   -> s
   -> Run r a
@@ -262,7 +264,7 @@ runAccumRec k = curry (tailRecM (uncurry loop))
 -- | with an internal accumulator.
 runAccumCont
   :: forall m r s a b
-  . (s -> VariantF r (s -> m b) -> m b)
+   . (s -> VariantF r (s -> m b) -> m b)
   -> (s -> a -> m b)
   -> s
   -> Run r a
@@ -276,7 +278,7 @@ runAccumCont k1 k2 = loop
 -- | preserve stack safety under tail recursion.
 runPure
   :: forall r1 r2 a
-  . (VariantF r1 (Run r1 a) -> Step (Run r1 a) (VariantF r2 (Run r1 a)))
+   . (VariantF r1 (Run r1 a) -> Step (Run r1 a) (VariantF r2 (Run r1 a)))
   -> Run r1 a
   -> Run r2 a
 runPure k = loop
@@ -293,7 +295,7 @@ runPure k = loop
 -- | `Control.Monad.Rec.Class` to preserve stack safety under tail recursion.
 runAccumPure
   :: forall r1 r2 a b s
-  . (s -> VariantF r1 (Run r1 a) -> Step (Tuple s (Run r1 a)) (VariantF r2 (Run r1 a)))
+   . (s -> VariantF r1 (Run r1 a) -> Step (Tuple s (Run r1 a)) (VariantF r2 (Run r1 a)))
   -> (s -> a -> b)
   -> s
   -> Run r1 a
