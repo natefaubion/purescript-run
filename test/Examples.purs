@@ -37,7 +37,7 @@ handleTalk = case _ of
 runTalk
   :: forall r
    . Run (EFFECT + TALK + r)
-  ~> Run (EFFECT + r)
+       ~> Run (EFFECT + r)
 runTalk = interpret (on _talk handleTalk send)
 
 ---
@@ -69,8 +69,10 @@ handleDinner :: forall a. Tally -> DinnerF a -> Tuple Tally a
 handleDinner tally = case _ of
   Eat _ reply
     | tally.stock > 0 ->
-        let tally' = { stock: tally.stock - 1, bill: tally.bill + 1 }
-        in Tuple tally' (reply true)
+        let
+          tally' = { stock: tally.stock - 1, bill: tally.bill + 1 }
+        in
+          Tuple tally' (reply true)
     | otherwise ->
         Tuple tally (reply false)
   CheckPlease reply ->
@@ -89,11 +91,10 @@ dinnerTime :: forall r. Run (LovelyEvening r) Unit
 dinnerTime = do
   speak "I'm famished!"
   isThereMore <- eat Pizza
-  if isThereMore
-    then dinnerTime
-    else do
-      bill <- checkPlease
-      speak "Outrageous!"
+  if isThereMore then dinnerTime
+  else do
+    bill <- checkPlease
+    speak "Outrageous!"
 
 program2 :: forall r. Run (EFFECT + DINNER + r) Unit
 program2 = dinnerTime # runTalk

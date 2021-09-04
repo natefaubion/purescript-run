@@ -39,4 +39,4 @@ runChoose = loop
       Right a' ->
         Run.send a' >>= loop
     Right a ->
-        pure (pure a)
+      pure (pure a)

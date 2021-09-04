@@ -36,9 +36,9 @@ _reader = Proxy
 liftReader :: forall e a r. Reader e a -> Run (READER e + r) a
 liftReader = liftReaderAt _reader
 
-liftReaderAt ::
-  forall proxy t e a r s
-  . IsSymbol s
+liftReaderAt
+  :: forall proxy t e a r s
+   . IsSymbol s
   => Row.Cons s (Reader e) t r
   => proxy s
   -> Reader e a
@@ -48,9 +48,9 @@ liftReaderAt = Run.lift
 ask :: forall e r. Run (READER e + r) e
 ask = askAt _reader
 
-askAt ::
-  forall proxy t e r s
-  . IsSymbol s
+askAt
+  :: forall proxy t e r s
+   . IsSymbol s
   => Row.Cons s (Reader e) t r
   => proxy s
   -> Run r e
@@ -59,9 +59,9 @@ askAt sym = asksAt sym identity
 asks :: forall e r a. (e -> a) -> Run (READER e + r) a
 asks = asksAt _reader
 
-asksAt ::
-  forall proxy t e r s a
-  . IsSymbol s
+asksAt
+  :: forall proxy t e r s a
+   . IsSymbol s
   => Row.Cons s (Reader e) t r
   => proxy s
   -> (e -> a)
@@ -71,9 +71,9 @@ asksAt sym f = liftReaderAt sym (Reader f)
 local :: forall e a r. (e -> e) -> Run (READER e + r) a -> Run (READER e + r) a
 local = localAt _reader
 
-localAt ::
-  forall proxy t e a r s
-  . IsSymbol s
+localAt
+  :: forall proxy t e a r s
+   . IsSymbol s
   => Row.Cons s (Reader e) t r
   => proxy s
   -> (e -> e)
@@ -96,9 +96,9 @@ localAt sym = \f r -> map f (askAt sym) >>= flip runLocal r
 runReader :: forall e a r. e -> Run (READER e + r) a -> Run r a
 runReader = runReaderAt _reader
 
-runReaderAt ::
-  forall proxy t e a r s
-  . IsSymbol s
+runReaderAt
+  :: forall proxy t e a r s
+   . IsSymbol s
   => Row.Cons s (Reader e) t r
   => proxy s
   -> e
