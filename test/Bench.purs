@@ -32,9 +32,8 @@ type TestR = Run (STATE Int + WRITER String + EXCEPT String + ())
 test_mono :: TestT Int
 test_mono = do
   x <- SC.get
-  if x <= 0
-    then pure 0
-    else test_inner
+  if x <= 0 then pure 0
+  else test_inner
   where
   test_inner = do
     SC.modify_ (_ - 2)
@@ -49,9 +48,8 @@ test_mono = do
 test_mono' :: TestT' Int
 test_mono' = do
   x <- SC.get
-  if x <= 0
-    then pure 0
-    else test_inner
+  if x <= 0 then pure 0
+  else test_inner
   where
   test_inner = do
     SC.modify_ (_ - 2)
@@ -71,9 +69,8 @@ test_mtl
   => m Int
 test_mtl = do
   x <- SC.get
-  if x <= 0
-    then pure 0
-    else test_inner
+  if x <= 0 then pure 0
+  else test_inner
   where
   test_inner = do
     SC.modify_ (_ - 2)
@@ -88,9 +85,8 @@ test_mtl = do
 test_run :: TestR Int
 test_run = do
   x <- RS.get
-  if x <= 0
-    then pure 0
-    else test_inner
+  if x <= 0 then pure 0
+  else test_inner
   where
   test_inner = do
     RS.modify (_ - 2)

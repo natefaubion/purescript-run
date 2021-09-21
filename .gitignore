@@ -8,3 +8,4 @@
 npm-debug.log
 .psa-stash
 .vscode
+package-lock.json

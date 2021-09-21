@@ -40,9 +40,8 @@ listen = lift _talk $ Listen identity
 program :: forall r. String -> Run (EXCEPT String + STATE String + r) Int
 program a = do
   put "Hello"
-  if a == "12"
-    then put "World" $> 12
-    else throw "Not 12"
+  if a == "12" then put "World" $> 12
+  else throw "Not 12"
 
 program2 :: forall r. Run (STATE Int + EFFECT + r) Int
 program2 = do
@@ -61,15 +60,14 @@ program3 = do
 program4 :: forall r. String -> Run (EXCEPT String + STATE String + r) Int
 program4 a = do
   putAt _state "Hello"
-  if a == "12"
-    then putAt _state "World" $> 12
-    else throwAt _except "Not 12"
+  if a == "12" then putAt _state "World" $> 12
+  else throwAt _except "Not 12"
 
 type MyEffects =
   ( STATE Int
-  + EXCEPT String
-  + EFFECT
-  + ()
+      + EXCEPT String
+      + EFFECT
+      + ()
   )
 
 yesProgram :: Run MyEffects Unit
@@ -90,7 +88,7 @@ yesProgram = do
 
 chooseProgram :: forall r. Run (CHOOSE + EFFECT + r) Int
 chooseProgram = do
-  n <- oneOfMap pure [1, 2, 3, 4, 5]
+  n <- oneOfMap pure [ 1, 2, 3, 4, 5 ]
   liftEffect $ log $ show n
   pure (n + 1)
 
@@ -123,7 +121,7 @@ main = do
 
   let
     runSpeak = send # on _talk case _ of
-      Speak str a  -> liftEffect (log str) $> a
+      Speak str a -> liftEffect (log str) $> a
       Listen reply -> pure $ reply "Gerald"
 
   program3
