@@ -23,25 +23,25 @@
     "test"
   ],
   "dependencies": {
-    "purescript-aff": "^6.0.0",
-    "purescript-either": "^5.0.0",
-    "purescript-free": "^6.0.0",
-    "purescript-maybe": "^5.0.0",
-    "purescript-newtype": "^4.0.0",
-    "purescript-prelude": "^5.0.0",
-    "purescript-tailrec": "^5.0.0",
-    "purescript-tuples": "^6.0.0",
+    "purescript-aff": "^7.0.0",
+    "purescript-either": "^6.0.0",
+    "purescript-free": "^7.0.0",
+    "purescript-maybe": "^6.0.0",
+    "purescript-newtype": "^5.0.0",
+    "purescript-prelude": "^6.0.0",
+    "purescript-tailrec": "^6.0.0",
+    "purescript-tuples": "^7.0.0",
     "purescript-type-equality": "^4.0.0",
-    "purescript-unsafe-coerce": "^5.0.0",
-    "purescript-variant": "^7.0.1",
-    "purescript-profunctor": "^5.0.0",
-    "purescript-effect": "^3.0.0",
-    "purescript-typelevel-prelude": "^6.0.0"
+    "purescript-unsafe-coerce": "^6.0.0",
+    "purescript-variant": "^8.0.0",
+    "purescript-profunctor": "^6.0.0",
+    "purescript-effect": "^4.0.0",
+    "purescript-typelevel-prelude": "^7.0.0"
   },
   "devDependencies": {
-    "purescript-control": "^5.0.0",
-    "purescript-minibench": "^3.0.0",
-    "purescript-identity": "^5.0.0",
-    "purescript-console": "^5.0.0"
+    "purescript-control": "^6.0.0",
+    "purescript-minibench": "^4.0.0",
+    "purescript-identity": "^6.0.0",
+    "purescript-console": "^6.0.0"
   }
 }

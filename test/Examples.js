@@ -1,9 +1,9 @@
 "use strict";
 
-exports.setTimeout = function (ms) {
+export function setTimeout(ms) {
   return function (eff) {
     return function () {
       setTimeout(eff, ms);
     };
   };
-};
+}
