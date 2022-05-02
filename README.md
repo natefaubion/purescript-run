@@ -1,7 +1,7 @@
 # purescript-run
 
 [![Latest release](http://img.shields.io/github/release/natefaubion/purescript-run.svg)](https://github.com/natefaubion/purescript-run/releases)
-[![Build status](https://travis-ci.org/natefaubion/purescript-run.svg?branch=master)](https://travis-ci.org/natefaubion/purescript-run)
+[![Build status](https://github.com/natefaubion/purescript-run/workflows/CI/badge.svg?branch=main)](https://github.com/natefaubion/purescript-run/actions?query=workflow%3ACI+branch%3Amaster)
 
 An [extensible-effects](https://hackage.haskell.org/package/extensible-effects)
 implementation for PureScript.
