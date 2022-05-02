@@ -55,10 +55,10 @@ liftExcept :: forall e a r. Except e a -> Run (EXCEPT e + r) a
 liftExcept = liftExceptAt _except
 
 liftExceptAt
-  :: forall proxy t e a r s
+  :: forall t e a r s
    . IsSymbol s
   => Row.Cons s (Except e) t r
-  => proxy s
+  => Proxy s
   -> Except e a
   -> Run r a
 liftExceptAt = Run.lift
@@ -67,10 +67,10 @@ throw :: forall e a r. e -> Run (EXCEPT e + r) a
 throw = throwAt _except
 
 throwAt
-  :: forall proxy t e a r s
+  :: forall t e a r s
    . IsSymbol s
   => Row.Cons s (Except e) t r
-  => proxy s
+  => Proxy s
   -> e
   -> Run r a
 throwAt sym = liftExceptAt sym <<< Except
@@ -79,10 +79,10 @@ fail :: forall a r. Run (FAIL + r) a
 fail = failAt _except
 
 failAt
-  :: forall proxy t a r s
+  :: forall t a r s
    . IsSymbol s
   => Row.Cons s Fail t r
-  => proxy s
+  => Proxy s
   -> Run r a
 failAt sym = throwAt sym unit
 
@@ -90,10 +90,10 @@ rethrow :: forall e a r. Either e a -> Run (EXCEPT e + r) a
 rethrow = rethrowAt _except
 
 rethrowAt
-  :: forall proxy t e a r s
+  :: forall t e a r s
    . IsSymbol s
   => Row.Cons s (Except e) t r
-  => proxy s
+  => Proxy s
   -> Either e a
   -> Run r a
 rethrowAt sym = either (throwAt sym) pure
@@ -102,10 +102,10 @@ note :: forall e a r. e -> Maybe a -> Run (EXCEPT e + r) a
 note = noteAt _except
 
 noteAt
-  :: forall proxy t e a r s
+  :: forall t e a r s
    . IsSymbol s
   => Row.Cons s (Except e) t r
-  => proxy s
+  => Proxy s
   -> e
   -> Maybe a
   -> Run r a
@@ -115,10 +115,10 @@ fromJust :: forall a r. Maybe a -> Run (FAIL + r) a
 fromJust = fromJustAt _except
 
 fromJustAt
-  :: forall proxy t a r s
+  :: forall t a r s
    . IsSymbol s
   => Row.Cons s Fail t r
-  => proxy s
+  => Proxy s
   -> Maybe a
   -> Run r a
 fromJustAt sym = noteAt sym unit
@@ -127,10 +127,10 @@ catch :: forall e a r. (e -> Run r a) -> Run (EXCEPT e + r) a -> Run r a
 catch = catchAt _except
 
 catchAt
-  :: forall proxy t e a r s
+  :: forall t e a r s
    . IsSymbol s
   => Row.Cons s (Except e) t r
-  => proxy s
+  => Proxy s
   -> (e -> Run t a)
   -> Run r a
   -> Run t a
@@ -150,10 +150,10 @@ runExcept :: forall e a r. Run (EXCEPT e + r) a -> Run r (Either e a)
 runExcept = runExceptAt _except
 
 runExceptAt
-  :: forall proxy t e a r s
+  :: forall t e a r s
    . IsSymbol s
   => Row.Cons s (Except e) t r
-  => proxy s
+  => Proxy s
   -> Run r a
   -> Run t (Either e a)
 runExceptAt sym = loop
@@ -172,10 +172,10 @@ runFail :: forall a r. Run (FAIL + r) a -> Run r (Maybe a)
 runFail = runFailAt _except
 
 runFailAt
-  :: forall proxy t a r s
+  :: forall t a r s
    . IsSymbol s
   => Row.Cons s Fail t r
-  => proxy s
+  => Proxy s
   -> Run r a
   -> Run t (Maybe a)
 runFailAt sym = map (either (const Nothing) Just) <<< runExceptAt sym

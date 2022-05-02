@@ -1,3 +1,3 @@
-exports.gc = function () {
+export function gc() {
   return global.gc();
-};
+}

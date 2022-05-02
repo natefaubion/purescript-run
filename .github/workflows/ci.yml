@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: |
+          npm install
+          npm install -g bower
+          bower install --production
+
+      - name: Build and test
+        run: |
+          npm run -s build
+          bower install
+          npm run -s test
+          npm run -s check

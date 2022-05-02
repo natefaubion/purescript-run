@@ -114,11 +114,11 @@ instance monadRecRun :: MonadRec (Run r) where
 -- | Lifts an effect functor into the `Run` Monad according to the provided
 -- | `Proxy` slot.
 lift
-  :: forall proxy sym r1 r2 f a
+  :: forall sym r1 r2 f a
    . Row.Cons sym f r1 r2
   => IsSymbol sym
   => Functor f
-  => proxy sym
+  => Proxy sym
   -> f a
   -> Run r2 a
 lift p = Run <<< liftF <<< inj p

@@ -38,10 +38,10 @@ liftWriter :: forall w a r. Writer w a -> Run (WRITER w + r) a
 liftWriter = liftWriterAt _writer
 
 liftWriterAt
-  :: forall proxy w a r t s
+  :: forall w a r t s
    . IsSymbol s
   => Row.Cons s (Writer w) t r
-  => proxy s
+  => Proxy s
   -> Writer w a
   -> Run r a
 liftWriterAt = Run.lift
@@ -50,10 +50,10 @@ tell :: forall w r. w -> Run (writer :: Writer w | r) Unit
 tell = tellAt _writer
 
 tellAt
-  :: forall proxy w r t s
+  :: forall w r t s
    . IsSymbol s
   => Row.Cons s (Writer w) t r
-  => proxy s
+  => Proxy s
   -> w
   -> Run r Unit
 tellAt sym w = liftWriterAt sym (Writer w unit)
@@ -62,10 +62,10 @@ censor :: forall w a r. (w -> w) -> Run (writer :: Writer w | r) a -> Run (write
 censor = censorAt _writer
 
 censorAt
-  :: forall proxy w a r t s
+  :: forall w a r t s
    . IsSymbol s
   => Row.Cons s (Writer w) t r
-  => proxy s
+  => Proxy s
   -> (w -> w)
   -> Run r a
   -> Run r a
@@ -86,10 +86,10 @@ foldWriter :: forall w b a r. (b -> w -> b) -> b -> Run (WRITER w + r) a -> Run 
 foldWriter = foldWriterAt _writer
 
 foldWriterAt
-  :: forall proxy w b a r t s
+  :: forall w b a r t s
    . IsSymbol s
   => Row.Cons s (Writer w) t r
-  => proxy s
+  => Proxy s
   -> (b -> w -> b)
   -> b
   -> Run r a
@@ -110,11 +110,11 @@ runWriter :: forall w a r. Monoid w => Run (WRITER w + r) a -> Run r (Tuple w a)
 runWriter = runWriterAt _writer
 
 runWriterAt
-  :: forall proxy w a r t s
+  :: forall w a r t s
    . IsSymbol s
   => Monoid w
   => Row.Cons s (Writer w) t r
-  => proxy s
+  => Proxy s
   -> Run r a
   -> Run t (Tuple w a)
 runWriterAt sym = foldWriterAt sym (<>) mempty
