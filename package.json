@@ -11,6 +11,6 @@
     "pulp": "^16.0.0",
     "purescript": "^0.15.0",
     "purescript-psa": "^0.8.2",
-    "purs-tidy": "^0.7.2"
+    "purs-tidy": "^0.8.0"
   }
 }
