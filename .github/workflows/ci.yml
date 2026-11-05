@@ -12,15 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Install dependencies
         run: |
           npm install
-          npm install -g bower
-          bower install --production
 
       - name: Build and test
         run: |
           npm run -s build
-          bower install
           npm run -s test
           npm run -s check
