@@ -2,7 +2,6 @@ name: CI
 
 on:
   push:
-    branches: [master]
   pull_request:
 
 jobs:
@@ -25,3 +24,8 @@ jobs:
           npm run -s build
           npm run -s test
           npm run -s check
+
+      - name: Run benchmarks
+        run: |
+          ulimit -s 65536
+          npm run -s bench

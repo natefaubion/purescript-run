@@ -3,6 +3,7 @@
   "scripts": {
     "build": "spago build",
     "test": "spago test",
+    "bench": "spago build && node --stack-size=16384 --expose-gc --input-type=module -e 'import { main } from \"./output/Test.Bench/index.js\"; main()'",
     "format": "purs-tidy format-in-place src test",
     "check": "purs-tidy check src test",
     "ide": "purs ide server"

@@ -29,6 +29,7 @@ package:
     main: Test.Main
     dependencies:
       - arrays: ">=7.0.0 <8.0.0"
+      - assert: ">=6.0.0 <7.0.0"
       - console: ">=6.0.0 <7.0.0"
       - foldable-traversable: ">=6.0.0 <7.0.0"
       - identity: ">=6.0.0 <7.0.0"

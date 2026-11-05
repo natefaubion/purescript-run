@@ -12,6 +12,13 @@ implementation for PureScript.
 spago install run
 ```
 
+## Development
+
+Run `npm install`, `npm run build`, and `npm test`. Run `npm run bench` for
+the existing benchmarks. The recursive transformer benchmarks need a larger
+stack: on Linux, run `ulimit -s 65536` first. The benchmark command sets Node's
+stack size and exposes garbage collection automatically, as CI does.
+
 ## Documentation
 
 - Module documentation is [published on Pursuit](http://pursuit.purescript.org/packages/purescript-run).
