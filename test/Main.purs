@@ -4,8 +4,10 @@ import Prelude
 
 import Control.Monad.Rec.Class (tailRecM, Step(..))
 import Data.Array as Array
+import Data.Either (Either(..))
 import Data.Foldable (for_, oneOfMap)
 import Data.Monoid.Additive (Additive(..))
+import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Console (logShow, log)
 import Run (EFFECT, Run, lift, liftEffect, on, extract, runBaseEffect, run, send)
@@ -14,6 +16,7 @@ import Run.Except (EXCEPT, _except, catch, runExcept, runExceptAt, throw, throwA
 import Run.Reader (READER, ask, runReader)
 import Run.State (STATE, _state, get, gets, modify, put, putAt, runState, runStateAt)
 import Run.Writer (WRITER, runWriter, tell)
+import Test.Assert (assertEqual)
 import Test.Examples as Examples
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
@@ -112,11 +115,15 @@ readerTCO = tcoLoop 100000 (const ask)
 
 main :: Effect Unit
 main = do
+  assertEqual { actual: program "42" # runState "" # runExcept # extract, expected: Left "Not 12" }
+  assertEqual { actual: program "42" # runExcept # runState "" # extract, expected: Tuple "Hello" (Left "Not 12") }
+  assertEqual { actual: program "12" # runState "" # runExcept # extract, expected: Right (Tuple "World" 12) }
   program "42" # runState "" # runExcept # extract # logShow
   program "42" # runExcept # runState "" # extract # logShow
   program "12" # runState "" # runExcept # extract # logShow
 
   res1 <- program2 # runState 0 # runBaseEffect
+  assertEqual { actual: res1, expected: Tuple 100000 100000 }
   logShow res1
 
   let
@@ -141,6 +148,7 @@ main = do
   as <- chooseProgram
     # runChoose
     # runBaseEffect
+  assertEqual { actual: as, expected: [ 2, 3, 4, 5, 6 ] }
   logShow (as :: Array Int)
 
   let
